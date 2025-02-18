@@ -18,7 +18,8 @@ def get_main_menu():
     return InlineKeyboardMarkup(keyboard)
 
 async def start(update: Update, context: CallbackContext):
-    await update.message.reply_text("Welcome to UniFood Delivery! Use the buttons below to interact.", reply_markup=get_main_menu())
+    await update.message.reply_text("Welcome to Smuth Delivery! Use the buttons below to interact.", reply_markup=get_main_menu())
+    await view_orders(update, context)
 
 async def handle_button(update: Update, context: CallbackContext):
     query = update.callback_query
@@ -35,7 +36,9 @@ async def handle_button(update: Update, context: CallbackContext):
 
 async def handle_order(update: Update, context: CallbackContext):
     user_states[update.effective_user.id] = 'awaiting_order'
-    await update.effective_message.reply_text("Please type your order now.", reply_markup=get_main_menu())
+    await update.effective_message.reply_text(
+    "Please type your order now, including your preferred menu, delivery time, and location.", 
+    reply_markup=get_main_menu())
 
 async def handle_claim(update: Update, context: CallbackContext):
     user_states[update.effective_user.id] = 'awaiting_claim'
@@ -49,8 +52,12 @@ async def handle_message(update: Update, context: CallbackContext):
     if state == 'awaiting_order':
         order_text = update.message.text
         order_id = len(orders) + 1
-        orders.append({'id': order_id, 'order': order_text, 'user': update.message.from_user.username, 'claimed': False})
-        await update.message.reply_text(f'Order received (ID: {order_id}): "{order_text}". Anyone available can use /claim {order_id} to deliver.', reply_markup=get_main_menu())
+        orders.append({'id': order_id, 'order': order_text, 'user': update.message.from_user.username, 'user_id': user_id, 'claimed': False})
+        await update.message.reply_text(
+            f'Order received (ID: {order_id}): "{order_text}"\n'
+            f'Placed by @{update.message.from_user.username} (ID: {user_id}).\n'
+            'Anyone available can use /claim {order_id} to deliver.',
+            reply_markup=get_main_menu())
     elif state == 'awaiting_claim':
         try:
             order_id = int(update.message.text)
@@ -64,7 +71,7 @@ async def handle_message(update: Update, context: CallbackContext):
             await update.message.reply_text("Invalid order ID.", reply_markup=get_main_menu())
 
 async def view_orders(update: Update, context: CallbackContext):
-    available_orders = [f'ID: {o["id"]} - {o["order"]}' for o in orders if not o['claimed']]
+    available_orders = [f'ID: {o["id"]} - {o["order"]} (User: @{o["user"]}, ID: {o["user_id"]})' for o in orders if not o['claimed']]
     await update.effective_message.reply_text("Available Orders:\n" + ("\n".join(available_orders) if available_orders else "No available orders."), reply_markup=get_main_menu())
 
 async def help_command(update: Update, context: CallbackContext):
