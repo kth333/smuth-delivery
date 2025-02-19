@@ -70,7 +70,6 @@ async def start(update: Update, context: CallbackContext):
 
     else:
         await update.message.reply_text("Welcome to Smuth Delivery! Use the buttons below to interact.", reply_markup=get_main_menu())
-        await view_orders(update, context)
 
 async def handle_button(update: Update, context: CallbackContext):
     query = update.callback_query
