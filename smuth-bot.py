@@ -12,6 +12,9 @@ from sqlalchemy.orm import sessionmaker
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 
+# Maximum allowed characters for an order
+MAX_ORDER_LENGTH = 500
+
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 Base = declarative_base()
 session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -52,7 +55,9 @@ async def start(update: Update, context: CallbackContext):
 
             if order:
                 order_details = f"Order ID: {order.id}\nDetails: {order.order_text}"
-                user_states[update.effective_user.id] = 'awaiting_claim'
+                # Save the order ID for confirmation in user states
+                user_states[update.effective_user.id] = {'state': 'awaiting_confirmation', 'order_id': order.id}
+                print(f"User {update.effective_user.id} is in 'awaiting_confirmation' state. Order ID: {order.id}")
                 await update.message.reply_text(
                     f"You're about to claim the following order:\n\n{order_details}\n\nPlease confirm by sending the order ID.",
                     reply_markup=get_main_menu()
@@ -70,7 +75,7 @@ async def start(update: Update, context: CallbackContext):
 async def handle_button(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
-    
+
     actions = {
         'order': handle_order,
         'vieworders': view_orders,
@@ -81,44 +86,144 @@ async def handle_button(update: Update, context: CallbackContext):
 
 # Handles the /order command and asks for the order
 async def handle_order(update: Update, context: CallbackContext):
-    user_states[update.effective_user.id] = 'awaiting_order'
+    user_states[update.effective_user.id] = {'state': 'awaiting_order'}
+    print(f"User {update.effective_user.id} is in 'awaiting_order' state.")
     await update.effective_message.reply_text("Please type your order now, including your preferred menu, delivery time, and location.", reply_markup=get_main_menu())
 
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 
 # Handles the /claim command and asks for the order ID to claim
 async def handle_claim(update: Update, context: CallbackContext):
-    session = session_local()
-    orders = session.query(Order).filter_by(claimed=False).all()
-    session.close()
+    user_id = update.effective_user.id
+    print(f"User {user_id} is interacting with the claim flow.")
 
-    if not orders:
-        await update.message.reply_text("No available orders to claim at the moment.", reply_markup=get_main_menu())
-        return
+    # If it's a /claim command (text-based)
+    if update.message:
+        # If there are arguments provided (e.g., /claim <order_id>)
+        if context.args:
+            try:
+                order_id = int(context.args[0])  # Extract order ID from command args
+                session = session_local()
+                order = session.query(Order).filter_by(id=order_id, claimed=False).first()
+                session.close()
 
-    order_list = "\n".join([f"ID: {o.id} - {o.order_text}" for o in orders])
+                if order:
+                    # Process the claim if the order is available and not claimed
+                    order.claimed = True
+                    session = session_local()
+                    session.commit()
+                    session.close()
 
-    # Limit to 10 orders per message (to avoid exceeding Telegram's limits)
-    order_chunks = [order_list[i:i+10] for i in range(0, len(order_list), 10)]
-    
-    for chunk in order_chunks:
-        await update.message.reply_text(f"Available Orders to Claim:\n{chunk}\n\nPlease type the Order ID you want to claim.")
+                    user_handle = update.message.from_user.username
+                    claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
 
-    user_states[update.effective_user.id] = 'awaiting_claim'
+                    message = f"Order {order_id} has been claimed successfully.\n\nDetails: {order.order_text}"
+
+                    # Send message to the user
+                    await update.message.reply_text(message, reply_markup=get_main_menu())
+
+                    message = f"Order {order_id} has been claimed by {claimed_by}.\n\nDetails: {order.order_text}"
+                    await context.bot.send_message(chat_id=CHANNEL_ID, text=message)
+                else:
+                    message = "This order is either already claimed or doesn't exist."
+                    await update.message.reply_text(message, reply_markup=get_main_menu())
+
+            except ValueError:
+                message = "Invalid order ID. Please enter a valid number."
+                await update.message.reply_text(message, reply_markup=get_main_menu())
+
+        else:
+            # If no ID is provided, prompt the user to enter the order ID they want to claim
+            user_states[user_id] = {'state': 'awaiting_order_id'}
+            print(f"User {user_id} is in 'awaiting_order_id' state.")
+            await update.message.reply_text(
+                "Please enter the Order ID you want to claim:",
+                reply_markup=get_main_menu()
+            )
+
+    # If it's an inline button press (callback query)
+    elif update.callback_query:
+        query_data = update.callback_query.data
+
+        # If the user clicked the "Claim Order" button (without order ID)
+        if query_data == "claim":
+            print(f"User {user_id} clicked 'Claim Order' button.")
+            # Set the user state to 'awaiting_order_id' to request the order ID
+            user_states[user_id] = {'state': 'awaiting_order_id'}
+            await update.callback_query.message.reply_text(
+                "Please enter the Order ID you want to claim:",
+                reply_markup=get_main_menu()
+            )
+            await update.callback_query.answer()  # Acknowledge the callback query
+
+        # If the user clicked the "Claim This Order" button (with order ID)
+        elif query_data.startswith("claim_"):
+            try:
+                order_id = int(query_data.split("_")[1])  # Extract order ID from the callback data
+                session = session_local()
+                order = session.query(Order).filter_by(id=order_id, claimed=False).first()
+                session.close()
+
+                if order:
+                    # Process the claim if the order is available and not claimed
+                    order.claimed = True
+                    session = session_local()
+                    session.commit()
+                    session.close()
+
+                    user_handle = update.callback_query.from_user.username
+                    claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
+
+                    message = f"Order {order_id} has been claimed successfully.\n\nDetails: {order.order_text}"
+
+                    # Send message to the user
+                    await update.callback_query.message.reply_text(message, reply_markup=get_main_menu())
+
+                    message = f"Order {order_id} has been claimed by {claimed_by}.\n\nDetails: {order.order_text}"
+                    await context.bot.send_message(chat_id=CHANNEL_ID, text=message)
+                else:
+                    message = "This order is either already claimed or doesn't exist."
+                    await update.callback_query.message.reply_text(message, reply_markup=get_main_menu())
+
+            except (ValueError, IndexError):
+                message = "Invalid order ID."
+                await update.callback_query.message.reply_text(message, reply_markup=get_main_menu())
+            await update.callback_query.answer()  # Acknowledge the callback query
 
 # Handles incoming text messages based on user states
 async def handle_message(update: Update, context: CallbackContext):
     user_id = update.message.from_user.id
+    print(f"User {user_id} is sending a message. Current state: {user_states.get(user_id)}")
+
+    # Check if the user has an active state (awaiting confirmation or awaiting claim)
     if user_id not in user_states:
         await update.message.reply_text("Need help? Type /help or click on the 'Help' below", reply_markup=get_main_menu())
         return
 
+    state_data = user_states.get(user_id)  # Use `.get()` instead of `pop()`
+    if not state_data:
+        await update.message.reply_text("Something went wrong. Please try again later.", reply_markup=get_main_menu())
+        return
+
+    state = state_data['state']
     session = session_local()
-    state = user_states.pop(user_id)
 
     try:
         if state == 'awaiting_order':
-            new_order = Order(order_text=update.message.text, user=update.message.from_user.username or 'UnknownUser')
+            # User is typing an order
+            order_text = update.message.text
+            print(f"User {user_id} typed the order: {order_text}")  # Debug print for order text
+
+            # Check if the order exceeds the maximum length
+            if len(order_text) > MAX_ORDER_LENGTH:
+                await update.message.reply_text(
+                    f"Your order is too long. Please limit your order to {MAX_ORDER_LENGTH} characters. Your order was {len(order_text)} characters long.",
+                    reply_markup=get_main_menu()
+                )
+                return  # Stop processing this message if it's too long
+
+            # Save the order if it's within the character limit
+            new_order = Order(order_text=order_text, user=update.message.from_user.username or 'UnknownUser')
             session.add(new_order)
             session.commit()
 
@@ -134,48 +239,94 @@ async def handle_message(update: Update, context: CallbackContext):
             message = f"New order placed.\nOrder ID: {new_order.id}\nDetails: {new_order.order_text}"
             await context.bot.send_message(chat_id=CHANNEL_ID, text=message, reply_markup=reply_markup)
 
-        elif state == 'awaiting_claim':
+        elif state == 'awaiting_confirmation':
+            # Check if the order ID matches the one the user is trying to claim
             try:
-                order_id = int(update.message.text)
-                order = session.query(Order).filter_by(id=order_id, claimed=False).with_for_update().first()
+                order_id = int(update.message.text)  # The user types the order ID
+                stored_order_id = state_data['order_id']
+
+                if order_id == stored_order_id:
+                    # Proceed with the claim
+                    order = session.query(Order).filter_by(id=order_id, claimed=False).first()
+                    if order:
+                        order.claimed = True
+                        session.commit()
+
+                        user_handle = update.message.from_user.username
+                        claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
+
+                        await update.message.reply_text(
+                            f"Order {order_id} has been claimed successfully.\n\nDetails: {order.order_text}",
+                            reply_markup=get_main_menu()
+                        )
+
+                        message = f"Order {order_id} has been claimed by {claimed_by}.\n\nDetails: {order.order_text}"
+                        await context.bot.send_message(chat_id=CHANNEL_ID, text=message)
+                    else:
+                        await update.message.reply_text("This order is no longer available or has been claimed.", reply_markup=get_main_menu())
+                else:
+                    await update.message.reply_text("The order ID does not match the one you were asked to confirm. Please try again.", reply_markup=get_main_menu())
+
+            except ValueError:
+                await update.message.reply_text("Invalid order ID. Please enter a valid number.", reply_markup=get_main_menu())
+
+        elif state == 'awaiting_order_id':
+            # Check if the user is entering the order ID for claiming
+            try:
+                order_id = int(update.message.text)  # The user types the order ID
+                session = session_local()
+                order = session.query(Order).filter_by(id=order_id, claimed=False).first()
+                session.close()
 
                 if order:
+                    # Process the claim if the order is available and not claimed
                     order.claimed = True
+                    session = session_local()
                     session.commit()
+                    session.close()
 
                     user_handle = update.message.from_user.username
                     claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
 
-                    await update.message.reply_text(
-                        f"Order {order_id} has been claimed.\n\nDetails: {order.order_text}",
-                        reply_markup=get_main_menu()
-                    )
+                    message = f"Order {order_id} has been claimed successfully.\n\nDetails: {order.order_text}"
+
+                    # Send message to the user
+                    await update.message.reply_text(message, reply_markup=get_main_menu())
 
                     message = f"Order {order_id} has been claimed by {claimed_by}.\n\nDetails: {order.order_text}"
                     await context.bot.send_message(chat_id=CHANNEL_ID, text=message)
-
                 else:
-                    await update.message.reply_text("Order not found or already claimed.", reply_markup=get_main_menu())
+                    message = "This order is either already claimed or doesn't exist."
+                    await update.message.reply_text(message, reply_markup=get_main_menu())
 
             except ValueError:
-                await update.message.reply_text("Invalid order ID.", reply_markup=get_main_menu())
+                message = "Invalid order ID. Please enter a valid number."
+                await update.message.reply_text(message, reply_markup=get_main_menu())
 
     except Exception as e:
         await update.message.reply_text("An error occurred. Please try again later.")
-        print(f"Error: {e}")
-
+        print(f"Error: {e}")  # Debugging logs
     finally:
         session.close()
 
 # Displays available orders that haven't been claimed yet
 async def view_orders(update: Update, context: CallbackContext):
+    # Determine if it's a message (command) or a callback query (button press)
+    if update.message:
+        # Handle /vieworders command
+        user_message = update.message
+    elif update.callback_query:
+        # Handle inline button press
+        user_message = update.callback_query.message
+        await update.callback_query.answer()  # Acknowledge the callback query
+    
+    # Query the database to get available orders
     session = session_local()
     orders = session.query(Order).filter_by(claimed=False).all()
     session.close()
 
-    if not orders:
-        message = "No orders to be claimed right now!"
-    else:
+    # Initialize the message variable
+    if orders:
         chunks = []
         order_texts = [f'ID: {o.id} - {o.order_text}' for o in orders]
 
@@ -183,13 +334,11 @@ async def view_orders(update: Update, context: CallbackContext):
         for i in range(0, len(order_texts), 20):
             chunks.append("\n".join(order_texts[i:i+20]))
 
+        # Send each chunk to the user
         for chunk in chunks:
-            await update.message.reply_text(f"Available Orders:\n{chunk}", reply_markup=get_main_menu())
-
-    if update.callback_query:
-        await update.callback_query.message.reply_text(message, reply_markup=get_main_menu())
+            await user_message.reply_text(f"Available Orders:\n{chunk}", reply_markup=get_main_menu())
     else:
-        await update.message.reply_text(message, reply_markup=get_main_menu())
+        await user_message.reply_text("No orders to be claimed right now!", reply_markup=get_main_menu())
 
 # Handles the /help command to provide users with available commands
 async def help_command(update: Update, context: CallbackContext):
