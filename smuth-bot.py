@@ -122,8 +122,15 @@ async def handle_claim(update: Update, context: CallbackContext):
                     # Send message to the user
                     await update.message.reply_text(message, reply_markup=get_main_menu())
 
+                    bot_username = context.bot.username
+                    keyboard = [
+                    [InlineKeyboardButton("Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+                    ]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+
                     message = f"Order {order_id} has been claimed by {claimed_by}.\n\nDetails: {order.order_text}"
-                    await context.bot.send_message(chat_id=CHANNEL_ID, text=message)
+                    await context.bot.send_message(chat_id=CHANNEL_ID, text=message, reply_markup=reply_markup)
+
                 else:
                     message = "This order is either already claimed or doesn't exist."
                     await update.message.reply_text(message, reply_markup=get_main_menu())
@@ -179,8 +186,15 @@ async def handle_claim(update: Update, context: CallbackContext):
                     # Send message to the user
                     await update.callback_query.message.reply_text(message, reply_markup=get_main_menu())
 
+                    bot_username = context.bot.username
+                    keyboard = [
+                    [InlineKeyboardButton("Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+                    ]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+
                     message = f"Order {order_id} has been claimed by {claimed_by}.\n\nDetails: {order.order_text}"
-                    await context.bot.send_message(chat_id=CHANNEL_ID, text=message)
+                    await context.bot.send_message(chat_id=CHANNEL_ID, text=message, reply_markup=reply_markup)
+
                 else:
                     message = "This order is either already claimed or doesn't exist."
                     await update.callback_query.message.reply_text(message, reply_markup=get_main_menu())
@@ -233,7 +247,10 @@ async def handle_message(update: Update, context: CallbackContext):
             )
 
             bot_username = context.bot.username
-            keyboard = [[InlineKeyboardButton("Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{new_order.id}")]]
+            keyboard = [
+                [InlineKeyboardButton("Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{new_order.id}")],
+                [InlineKeyboardButton("Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+            ]
             reply_markup = InlineKeyboardMarkup(keyboard)
 
             message = f"New order placed.\nOrder ID: {new_order.id}\nDetails: {new_order.order_text}"
@@ -260,8 +277,15 @@ async def handle_message(update: Update, context: CallbackContext):
                             reply_markup=get_main_menu()
                         )
 
+                        bot_username = context.bot.username
+                        keyboard = [
+                        [InlineKeyboardButton("Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+                        ]
+                        reply_markup = InlineKeyboardMarkup(keyboard)
+
                         message = f"Order {order_id} has been claimed by {claimed_by}.\n\nDetails: {order.order_text}"
-                        await context.bot.send_message(chat_id=CHANNEL_ID, text=message)
+                        await context.bot.send_message(chat_id=CHANNEL_ID, text=message, reply_markup=reply_markup)
+
                     else:
                         await update.message.reply_text("This order is no longer available or has been claimed.", reply_markup=get_main_menu())
                 else:
@@ -293,8 +317,15 @@ async def handle_message(update: Update, context: CallbackContext):
                     # Send message to the user
                     await update.message.reply_text(message, reply_markup=get_main_menu())
 
+                    bot_username = context.bot.username
+                    keyboard = [
+                    [InlineKeyboardButton("Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+                    ]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+
                     message = f"Order {order_id} has been claimed by {claimed_by}.\n\nDetails: {order.order_text}"
-                    await context.bot.send_message(chat_id=CHANNEL_ID, text=message)
+                    await context.bot.send_message(chat_id=CHANNEL_ID, text=message, reply_markup=reply_markup)
+
                 else:
                     message = "This order is either already claimed or doesn't exist."
                     await update.message.reply_text(message, reply_markup=get_main_menu())
