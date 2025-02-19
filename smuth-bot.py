@@ -60,7 +60,9 @@ async def handle_order(update: Update, context: CallbackContext):
     user_states[update.effective_user.id] = 'awaiting_order'
     await update.effective_message.reply_text("Please type your order now, including your preferred menu, delivery time, and location.", reply_markup=get_main_menu())
 
-# Handles the /claimm command and asks for the order ID to claim
+CHANNEL_ID = os.getenv("CHANNEL_ID")
+
+# Handles the /claim command and asks for the order ID to claim
 async def handle_claim(update: Update, context: CallbackContext):
     user_states[update.effective_user.id] = 'awaiting_claim'
     await update.effective_message.reply_text("Please type the order ID you want to claim.", reply_markup=get_main_menu())
@@ -71,31 +73,53 @@ async def handle_message(update: Update, context: CallbackContext):
     if user_id not in user_states:
         await update.message.reply_text("Need help? Type /help or click on the 'Help' below", reply_markup=get_main_menu())
         return
-    
+
     session = session_local()
     state = user_states.pop(user_id)
-    
-    if state == 'awaiting_order':
-        new_order = Order(order_text=update.message.text, user=update.message.from_user.username or 'UnknownUser')
-        session.add(new_order)
-        session.commit()
-        await update.message.reply_text(f'Order received (ID: {new_order.id}): "{new_order.order_text}"', reply_markup=get_main_menu())
-    
-    elif state == 'awaiting_claim':
-        try:
-            order_id = int(update.message.text)
-            order = session.query(Order).filter_by(id=order_id, claimed=False).with_for_update().first()
-            
-            if order:
-                order.claimed = True
-                session.commit()
-                await update.message.reply_text(f'Order {order_id} claimed by @{update.message.from_user.username or "UnknownUser"}.', reply_markup=get_main_menu())
-            else:
-                await update.message.reply_text("Order not found or already claimed.", reply_markup=get_main_menu())
-        except ValueError:
-            await update.message.reply_text("Invalid order ID.", reply_markup=get_main_menu())
-    
-    session.close()
+
+    try:
+        if state == 'awaiting_order':
+            new_order = Order(order_text=update.message.text, user=update.message.from_user.username or 'UnknownUser')
+            session.add(new_order)
+            session.commit()
+
+            # Notify the user
+            await update.message.reply_text(
+                f"Order received (ID: {new_order.id})",
+                reply_markup=get_main_menu()
+            )
+
+            # Notify the channel about the new order
+            message = f"New order placed.\nOrder ID: {new_order.id}\nDetails: {new_order.order_text}"
+            await context.bot.send_message(chat_id=CHANNEL_ID, text=message)
+
+        elif state == 'awaiting_claim':
+            try:
+                order_id = int(update.message.text)
+                order = session.query(Order).filter_by(id=order_id, claimed=False).with_for_update().first()
+
+                if order:
+                    order.claimed = True
+                    session.commit()
+
+                    # Get the user's handle for the claim announcement
+                    user_handle = update.message.from_user.username
+                    claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
+
+                    # Notify the user
+                    await update.message.reply_text(f"Order {order_id} has been claimed.", reply_markup=get_main_menu())
+
+                    # Notify the channel about the claim (with user handle)
+                    message = f"Order {order_id} has been claimed by {claimed_by}."
+                    await context.bot.send_message(chat_id=CHANNEL_ID, text=message)
+
+                else:
+                    await update.message.reply_text("Order not found or already claimed.", reply_markup=get_main_menu())
+
+            except ValueError:
+                await update.message.reply_text("Invalid order ID.", reply_markup=get_main_menu())
+    finally:
+        session.close()
 
 # Displays available orders that haven't been claimed yet
 async def view_orders(update: Update, context: CallbackContext):
@@ -104,7 +128,7 @@ async def view_orders(update: Update, context: CallbackContext):
     session.close()
     
     if orders:
-        message = "Available Orders:\n" + "\n".join([f'ID: {o.id} - {o.order_text} (User: @{o.user})' for o in orders])
+        message = "Available Orders:\n" + "\n".join([f'ID: {o.id} - {o.order_text}' for o in orders])
     else:
         message = "No orders to be claimed right now!"    
     if update.callback_query:
