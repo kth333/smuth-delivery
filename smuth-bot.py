@@ -23,8 +23,9 @@ class Order(Base):
     __tablename__ = 'orders'
     id = Column(Integer, Sequence('order_id_seq'), primary_key=True)
     order_text = Column(String, nullable=False)
-    user = Column(String, nullable=False)
     claimed = Column(Boolean, default=False)
+    user_id = Column(Integer, nullable=False)  # Store Telegram numeric ID
+    user_handle = Column(String, nullable=True)  # Store Telegram username
 
 Base.metadata.create_all(bind=engine)
 
@@ -103,36 +104,49 @@ async def handle_claim(update: Update, context: CallbackContext):
             try:
                 order_id = int(context.args[0])  # Extract order ID from command args
                 session = session_local()
-                order = session.query(Order).filter_by(id=order_id, claimed=False).with_for_update().first()
-                session.close()
+                try:
+                    order = session.query(Order).filter_by(id=order_id, claimed=False).with_for_update().first()
 
-                if order:
-                    # Process the claim if the order is available and not claimed
-                    order.claimed = True
-                    session = session_local()
-                    session.commit()
+                    if order:
+                        order.claimed = True
+                        session.commit()
+
+                        user_handle = update.message.from_user.username
+                        claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
+                        orderer_id = order.user_id
+
+                        if user_id in user_states:
+                            del user_states[user_id]
+
+                        # Notify the claimer
+                        message = f"Order {order_id} has been claimed successfully. We have notified the orderer with your telegram handle.\nDetails: {order.order_text}"
+                        await update.message.reply_text(message, reply_markup=get_main_menu())
+
+                        # Notify the orderer
+                        if orderer_id:
+                            try:
+                                await context.bot.send_message(
+                                    chat_id=orderer_id,
+                                    text=f"Your order (ID: {order_id}) has been claimed by {claimed_by}.\n\nDetails: {order.order_text}"
+                                )
+                            except Exception as e:
+                                print(f"Failed to notify orderer @{orderer_id}: {e}")
+
+                        # Send a message to the channel
+                        bot_username = context.bot.username
+                        keyboard = [
+                        [InlineKeyboardButton("Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+                        ]
+                        reply_markup = InlineKeyboardMarkup(keyboard)
+
+                        channel_message = f"Order {order_id} has been claimed.\n\nDetails: {order.order_text}"
+                        await context.bot.send_message(chat_id=CHANNEL_ID, text=channel_message, reply_markup=reply_markup)
+
+                    else:
+                        message = "This order is either already claimed or doesn't exist."
+                        await update.message.reply_text(message, reply_markup=get_main_menu())
+                finally:
                     session.close()
-
-                    user_handle = update.message.from_user.username
-                    claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
-
-                    message = f"Order {order_id} has been claimed successfully.\n\nDetails: {order.order_text}"
-
-                    # Send message to the user
-                    await update.message.reply_text(message, reply_markup=get_main_menu())
-
-                    bot_username = context.bot.username
-                    keyboard = [
-                    [InlineKeyboardButton("Place an Order", url=f"https://t.me/{bot_username}?start=order")]
-                    ]
-                    reply_markup = InlineKeyboardMarkup(keyboard)
-
-                    message = f"Order {order_id} has been claimed by {claimed_by}.\n\nDetails: {order.order_text}"
-                    await context.bot.send_message(chat_id=CHANNEL_ID, text=message, reply_markup=reply_markup)
-
-                else:
-                    message = "This order is either already claimed or doesn't exist."
-                    await update.message.reply_text(message, reply_markup=get_main_menu())
 
             except ValueError:
                 message = "Invalid order ID. Please enter a valid number."
@@ -141,7 +155,6 @@ async def handle_claim(update: Update, context: CallbackContext):
         else:
             # If no ID is provided, prompt the user to enter the order ID they want to claim
             user_states[user_id] = {'state': 'awaiting_order_id'}
-            print(f"User {user_id} is in 'awaiting_order_id' state.")
             await update.message.reply_text(
                 "Please enter the Order ID you want to claim:",
                 reply_markup=get_main_menu()
@@ -153,8 +166,6 @@ async def handle_claim(update: Update, context: CallbackContext):
 
         # If the user clicked the "Claim Order" button (without order ID)
         if query_data == "claim":
-            print(f"User {user_id} clicked 'Claim Order' button.")
-            # Set the user state to 'awaiting_order_id' to request the order ID
             user_states[user_id] = {'state': 'awaiting_order_id'}
             await update.callback_query.message.reply_text(
                 "Please enter the Order ID you want to claim:",
@@ -167,36 +178,50 @@ async def handle_claim(update: Update, context: CallbackContext):
             try:
                 order_id = int(query_data.split("_")[1])  # Extract order ID from the callback data
                 session = session_local()
-                oorder = session.query(Order).filter_by(id=order_id, claimed=False).with_for_update().first()
-                session.close()
+                try:
+                    order = session.query(Order).filter_by(id=order_id, claimed=False).with_for_update().first()
 
-                if order:
-                    # Process the claim if the order is available and not claimed
-                    order.claimed = True
-                    session = session_local()
-                    session.commit()
+                    if order:
+                        order.claimed = True
+                        session.commit()
+
+                        user_handle = update.callback_query.from_user.username
+                        claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
+                        orderer_id = order.user_id
+
+                        if user_id in user_states:
+                            del user_states[user_id]
+
+                        # Notify the claimer
+                        message = f"Order {order_id} has been claimed successfully. We have notified the orderer with your telegram handle.\nDetails: {order.order_text}"
+                        await update.callback_query.message.reply_text(message, reply_markup=get_main_menu())
+
+                        # Notify the orderer
+                        if orderer_id:
+                            try:
+                                await context.bot.send_message(
+                                    chat_id=orderer_id,
+                                    text=f"Your order (ID: {order_id}) has been claimed by {claimed_by}.\n\nDetails: {order.order_text}"
+                                )
+                            except Exception as e:
+                                print(f"Failed to notify orderer @{orderer_id}: {e}")
+
+                        # Send a message to the channel
+                        bot_username = context.bot.username
+                        keyboard = [
+                        [InlineKeyboardButton("Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+                        ]
+                        reply_markup = InlineKeyboardMarkup(keyboard)
+
+                        channel_message = f"Order {order_id} has been claimed.\n\nDetails: {order.order_text}"
+                        await context.bot.send_message(chat_id=CHANNEL_ID, text=channel_message, reply_markup=reply_markup)
+
+                    else:
+                        message = "This order is either already claimed or doesn't exist."
+                        await update.callback_query.message.reply_text(message, reply_markup=get_main_menu())
+
+                finally:
                     session.close()
-
-                    user_handle = update.callback_query.from_user.username
-                    claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
-
-                    message = f"Order {order_id} has been claimed successfully.\n\nDetails: {order.order_text}"
-
-                    # Send message to the user
-                    await update.callback_query.message.reply_text(message, reply_markup=get_main_menu())
-
-                    bot_username = context.bot.username
-                    keyboard = [
-                    [InlineKeyboardButton("Place an Order", url=f"https://t.me/{bot_username}?start=order")]
-                    ]
-                    reply_markup = InlineKeyboardMarkup(keyboard)
-
-                    message = f"Order {order_id} has been claimed by {claimed_by}.\n\nDetails: {order.order_text}"
-                    await context.bot.send_message(chat_id=CHANNEL_ID, text=message, reply_markup=reply_markup)
-
-                else:
-                    message = "This order is either already claimed or doesn't exist."
-                    await update.callback_query.message.reply_text(message, reply_markup=get_main_menu())
 
             except (ValueError, IndexError):
                 message = "Invalid order ID."
@@ -213,7 +238,7 @@ async def handle_message(update: Update, context: CallbackContext):
         await update.message.reply_text("Need help? Type /help or click on the 'Help' below", reply_markup=get_main_menu())
         return
 
-    state_data = user_states.get(user_id)  # Use `.get()` instead of `pop()`
+    state_data = user_states.get(user_id)
     if not state_data:
         await update.message.reply_text("Something went wrong. Please try again later.", reply_markup=get_main_menu())
         return
@@ -236,9 +261,12 @@ async def handle_message(update: Update, context: CallbackContext):
                 return  # Stop processing this message if it's too long
 
             # Save the order if it's within the character limit
-            new_order = Order(order_text=order_text, user=update.message.from_user.username or 'UnknownUser')
+            new_order = Order(order_text=order_text, user_id=update.message.from_user.id, user_handle=update.message.from_user.username)
             session.add(new_order)
             session.commit()
+
+            if user_id in user_states:
+                del user_states[user_id]
 
             await update.message.reply_text(
                 f"Order received (ID: {new_order.id})",
@@ -270,11 +298,24 @@ async def handle_message(update: Update, context: CallbackContext):
 
                         user_handle = update.message.from_user.username
                         claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
+                        orderer_id = order.user_id
 
-                        await update.message.reply_text(
-                            f"Order {order_id} has been claimed successfully.\n\nDetails: {order.order_text}",
-                            reply_markup=get_main_menu()
-                        )
+                        if user_id in user_states:
+                            del user_states[user_id]
+
+                        # Notify the claimer
+                        message = f"Order {order_id} has been claimed successfully. We have notified the orderer with your telegram handle.\nDetails: {order.order_text}"
+                        await update.message.reply_text(message, reply_markup=get_main_menu())
+
+                        # Notify the orderer
+                        if orderer_id:
+                            try:
+                                await context.bot.send_message(
+                                    chat_id=orderer_id,
+                                    text=f"Your order (ID: {order_id}) has been claimed by {claimed_by}.\n\nDetails: {order.order_text}"
+                                )
+                            except Exception as e:
+                                print(f"Failed to notify orderer @{orderer_id}: {e}")
 
                         bot_username = context.bot.username
                         keyboard = [
@@ -282,8 +323,9 @@ async def handle_message(update: Update, context: CallbackContext):
                         ]
                         reply_markup = InlineKeyboardMarkup(keyboard)
 
-                        message = f"Order {order_id} has been claimed by {claimed_by}.\n\nDetails: {order.order_text}"
-                        await context.bot.send_message(chat_id=CHANNEL_ID, text=message, reply_markup=reply_markup)
+                        # Send a message to the channel
+                        channel_message = f"Order {order_id} has been claimed.\n\nDetails: {order.order_text}"
+                        await context.bot.send_message(chat_id=CHANNEL_ID, text=channel_message, reply_markup=reply_markup)
 
                     else:
                         await update.message.reply_text("This order is no longer available or has been claimed.", reply_markup=get_main_menu())
@@ -297,37 +339,50 @@ async def handle_message(update: Update, context: CallbackContext):
             # Check if the user is entering the order ID for claiming
             try:
                 order_id = int(update.message.text)  # The user types the order ID
-                session = session_local()
-                order = session.query(Order).filter_by(id=order_id, claimed=False).with_for_update().first()
-                session.close()
+                try:
+                    order = session.query(Order).filter_by(id=order_id, claimed=False).with_for_update().first()
 
-                if order:
-                    # Process the claim if the order is available and not claimed
-                    order.claimed = True
-                    session = session_local()
-                    session.commit()
+                    if order:
+                        order.claimed = True
+                        session.commit()
+
+                        user_handle = update.message.from_user.username
+                        claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
+                        orderer_id = order.user_id
+
+                        if user_id in user_states:
+                            del user_states[user_id]
+
+                        # Notify the claimer
+                        message = f"Order {order_id} has been claimed successfully. We have notified the orderer with your telegram handle.\nDetails: {order.order_text}"
+                        await update.message.reply_text(message, reply_markup=get_main_menu())
+
+                        # Notify the orderer
+                        if orderer_id:
+                            try:
+                                await context.bot.send_message(
+                                    chat_id=orderer_id,
+                                    text=f"Your order (ID: {order_id}) has been claimed by {claimed_by}.\n\nDetails: {order.order_text}"
+                                )
+                            except Exception as e:
+                                print(f"Failed to notify orderer @{orderer_id}: {e}")
+
+                        bot_username = context.bot.username
+                        keyboard = [
+                        [InlineKeyboardButton("Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+                        ]
+                        reply_markup = InlineKeyboardMarkup(keyboard)
+
+                        # Send a message to the channel
+                        message = f"Order {order_id} has been claimed.\n\nDetails: {order.order_text}"
+                        await context.bot.send_message(chat_id=CHANNEL_ID, text=message, reply_markup=reply_markup)
+
+                    else:
+                        message = "This order is either already claimed or doesn't exist."
+                        await update.message.reply_text(message, reply_markup=get_main_menu())
+
+                finally:
                     session.close()
-
-                    user_handle = update.message.from_user.username
-                    claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
-
-                    message = f"Order {order_id} has been claimed successfully.\n\nDetails: {order.order_text}"
-
-                    # Send message to the user
-                    await update.message.reply_text(message, reply_markup=get_main_menu())
-
-                    bot_username = context.bot.username
-                    keyboard = [
-                    [InlineKeyboardButton("Place an Order", url=f"https://t.me/{bot_username}?start=order")]
-                    ]
-                    reply_markup = InlineKeyboardMarkup(keyboard)
-
-                    message = f"Order {order_id} has been claimed by {claimed_by}.\n\nDetails: {order.order_text}"
-                    await context.bot.send_message(chat_id=CHANNEL_ID, text=message, reply_markup=reply_markup)
-
-                else:
-                    message = "This order is either already claimed or doesn't exist."
-                    await update.message.reply_text(message, reply_markup=get_main_menu())
 
             except ValueError:
                 message = "Invalid order ID. Please enter a valid number."
@@ -336,6 +391,7 @@ async def handle_message(update: Update, context: CallbackContext):
     except Exception as e:
         await update.message.reply_text("An error occurred. Please try again later.")
         print(f"Error: {e}")  # Debugging logs
+
     finally:
         session.close()
 
