@@ -50,7 +50,7 @@ async def start(update: Update, context: CallbackContext):
             order_id = int(args[0].split("_")[1])  # Extract order ID
 
             session = session_local()
-            order = session.query(Order).filter_by(id=order_id, claimed=False).first()
+            order = session.query(Order).filter_by(id=order_id, claimed=False).with_for_update().first()
             session.close()
 
             if order:
@@ -103,7 +103,7 @@ async def handle_claim(update: Update, context: CallbackContext):
             try:
                 order_id = int(context.args[0])  # Extract order ID from command args
                 session = session_local()
-                order = session.query(Order).filter_by(id=order_id, claimed=False).first()
+                order = session.query(Order).filter_by(id=order_id, claimed=False).with_for_update().first()
                 session.close()
 
                 if order:
@@ -167,7 +167,7 @@ async def handle_claim(update: Update, context: CallbackContext):
             try:
                 order_id = int(query_data.split("_")[1])  # Extract order ID from the callback data
                 session = session_local()
-                order = session.query(Order).filter_by(id=order_id, claimed=False).first()
+                oorder = session.query(Order).filter_by(id=order_id, claimed=False).with_for_update().first()
                 session.close()
 
                 if order:
@@ -263,7 +263,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
                 if order_id == stored_order_id:
                     # Proceed with the claim
-                    order = session.query(Order).filter_by(id=order_id, claimed=False).first()
+                    order = session.query(Order).filter_by(id=order_id, claimed=False).with_for_update().first()
                     if order:
                         order.claimed = True
                         session.commit()
@@ -298,7 +298,7 @@ async def handle_message(update: Update, context: CallbackContext):
             try:
                 order_id = int(update.message.text)  # The user types the order ID
                 session = session_local()
-                order = session.query(Order).filter_by(id=order_id, claimed=False).first()
+                order = session.query(Order).filter_by(id=order_id, claimed=False).with_for_update().first()
                 session.close()
 
                 if order:
