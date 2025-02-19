@@ -44,6 +44,7 @@ def get_main_menu():
 
 # Handles the /start command and displays the main menu
 async def start(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
     args = context.args if context.args else []  # Ensure args is always a list
 
     if args and args[0].startswith("claim_"):
@@ -57,16 +58,20 @@ async def start(update: Update, context: CallbackContext):
             if order:
                 order_details = f"Order ID: {order.id}\nDetails: {order.order_text}"
                 # Save the order ID for confirmation in user states
-                user_states[update.effective_user.id] = {'state': 'awaiting_confirmation', 'order_id': order.id}
-                print(f"User {update.effective_user.id} is in 'awaiting_confirmation' state. Order ID: {order.id}")
+                user_states[user.id] = {'state': 'awaiting_confirmation', 'order_id': order.id}
+                print(f"User {user.id} is in 'awaiting_confirmation' state. Order ID: {order.id}")
                 await update.message.reply_text(
                     f"You're about to claim the following order:\n\n{order_details}\n\nPlease confirm by sending the order ID.",
                     reply_markup=get_main_menu()
                 )
             else:
+                if user_id in user_states:
+                    del user_states[user_id]
                 await update.message.reply_text("Sorry, this order has already been claimed or does not exist.", reply_markup=get_main_menu())
 
         except (IndexError, ValueError):  # Handle invalid claim IDs
+            if user_id in user_states:
+                del user_states[user_id]
             await update.message.reply_text("Invalid order claim request.", reply_markup=get_main_menu())
 
     else:
@@ -143,12 +148,16 @@ async def handle_claim(update: Update, context: CallbackContext):
                         await context.bot.send_message(chat_id=CHANNEL_ID, text=channel_message, reply_markup=reply_markup)
 
                     else:
+                        if user_id in user_states:
+                            del user_states[user_id]
                         message = "This order is either already claimed or doesn't exist."
                         await update.message.reply_text(message, reply_markup=get_main_menu())
                 finally:
                     session.close()
 
             except ValueError:
+                if user_id in user_states:
+                    del user_states[user_id]
                 message = "Invalid order ID. Please enter a valid number."
                 await update.message.reply_text(message, reply_markup=get_main_menu())
 
@@ -217,6 +226,8 @@ async def handle_claim(update: Update, context: CallbackContext):
                         await context.bot.send_message(chat_id=CHANNEL_ID, text=channel_message, reply_markup=reply_markup)
 
                     else:
+                        if user_id in user_states:
+                            del user_states[user_id]
                         message = "This order is either already claimed or doesn't exist."
                         await update.callback_query.message.reply_text(message, reply_markup=get_main_menu())
 
@@ -224,6 +235,8 @@ async def handle_claim(update: Update, context: CallbackContext):
                     session.close()
 
             except (ValueError, IndexError):
+                if user_id in user_states:
+                    del user_states[user_id]
                 message = "Invalid order ID."
                 await update.callback_query.message.reply_text(message, reply_markup=get_main_menu())
             await update.callback_query.answer()  # Acknowledge the callback query
@@ -328,11 +341,17 @@ async def handle_message(update: Update, context: CallbackContext):
                         await context.bot.send_message(chat_id=CHANNEL_ID, text=channel_message, reply_markup=reply_markup)
 
                     else:
+                        if user_id in user_states:
+                            del user_states[user_id]
                         await update.message.reply_text("This order is no longer available or has been claimed.", reply_markup=get_main_menu())
                 else:
+                    if user_id in user_states:
+                        del user_states[user_id]
                     await update.message.reply_text("The order ID does not match the one you were asked to confirm. Please try again.", reply_markup=get_main_menu())
 
             except ValueError:
+                if user_id in user_states:
+                    del user_states[user_id]
                 await update.message.reply_text("Invalid order ID. Please enter a valid number.", reply_markup=get_main_menu())
 
         elif state == 'awaiting_order_id':
@@ -378,6 +397,8 @@ async def handle_message(update: Update, context: CallbackContext):
                         await context.bot.send_message(chat_id=CHANNEL_ID, text=message, reply_markup=reply_markup)
 
                     else:
+                        if user_id in user_states:
+                            del user_states[user_id]
                         message = "This order is either already claimed or doesn't exist."
                         await update.message.reply_text(message, reply_markup=get_main_menu())
 
@@ -385,6 +406,8 @@ async def handle_message(update: Update, context: CallbackContext):
                     session.close()
 
             except ValueError:
+                if user_id in user_states:
+                    del user_states[user_id]
                 message = "Invalid order ID. Please enter a valid number."
                 await update.message.reply_text(message, reply_markup=get_main_menu())
 
