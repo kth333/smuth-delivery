@@ -40,8 +40,32 @@ def get_main_menu():
 
 # Handles the /start command and displays the main menu
 async def start(update: Update, context: CallbackContext):
-    await update.message.reply_text("Welcome to Smuth Delivery! Use the buttons below to interact.", reply_markup=get_main_menu())
-    await view_orders(update, context)
+    args = context.args if context.args else []  # Ensure args is always a list
+
+    if args and args[0].startswith("claim_"):
+        try:
+            order_id = int(args[0].split("_")[1])  # Extract order ID
+
+            session = session_local()
+            order = session.query(Order).filter_by(id=order_id, claimed=False).first()
+            session.close()
+
+            if order:
+                order_details = f"Order ID: {order.id}\nDetails: {order.order_text}"
+                user_states[update.effective_user.id] = 'awaiting_claim'
+                await update.message.reply_text(
+                    f"You're about to claim the following order:\n\n{order_details}\n\nPlease confirm by sending the order ID.",
+                    reply_markup=get_main_menu()
+                )
+            else:
+                await update.message.reply_text("Sorry, this order has already been claimed or does not exist.", reply_markup=get_main_menu())
+
+        except (IndexError, ValueError):  # Handle invalid claim IDs
+            await update.message.reply_text("Invalid order claim request.", reply_markup=get_main_menu())
+
+    else:
+        await update.message.reply_text("Welcome to Smuth Delivery! Use the buttons below to interact.", reply_markup=get_main_menu())
+        await view_orders(update, context)
 
 async def handle_button(update: Update, context: CallbackContext):
     query = update.callback_query
@@ -64,8 +88,23 @@ CHANNEL_ID = os.getenv("CHANNEL_ID")
 
 # Handles the /claim command and asks for the order ID to claim
 async def handle_claim(update: Update, context: CallbackContext):
+    session = session_local()
+    orders = session.query(Order).filter_by(claimed=False).all()
+    session.close()
+
+    if not orders:
+        await update.message.reply_text("No available orders to claim at the moment.", reply_markup=get_main_menu())
+        return
+
+    order_list = "\n".join([f"ID: {o.id} - {o.order_text}" for o in orders])
+
+    # Limit to 10 orders per message (to avoid exceeding Telegram's limits)
+    order_chunks = [order_list[i:i+10] for i in range(0, len(order_list), 10)]
+    
+    for chunk in order_chunks:
+        await update.message.reply_text(f"Available Orders to Claim:\n{chunk}\n\nPlease type the Order ID you want to claim.")
+
     user_states[update.effective_user.id] = 'awaiting_claim'
-    await update.effective_message.reply_text("Please type the order ID you want to claim.", reply_markup=get_main_menu())
 
 # Handles incoming text messages based on user states
 async def handle_message(update: Update, context: CallbackContext):
@@ -83,15 +122,17 @@ async def handle_message(update: Update, context: CallbackContext):
             session.add(new_order)
             session.commit()
 
-            # Notify the user
             await update.message.reply_text(
                 f"Order received (ID: {new_order.id})",
                 reply_markup=get_main_menu()
             )
 
-            # Notify the channel about the new order
+            bot_username = context.bot.username
+            keyboard = [[InlineKeyboardButton("Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{new_order.id}")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
             message = f"New order placed.\nOrder ID: {new_order.id}\nDetails: {new_order.order_text}"
-            await context.bot.send_message(chat_id=CHANNEL_ID, text=message)
+            await context.bot.send_message(chat_id=CHANNEL_ID, text=message, reply_markup=reply_markup)
 
         elif state == 'awaiting_claim':
             try:
@@ -102,15 +143,15 @@ async def handle_message(update: Update, context: CallbackContext):
                     order.claimed = True
                     session.commit()
 
-                    # Get the user's handle for the claim announcement
                     user_handle = update.message.from_user.username
                     claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
 
-                    # Notify the user
-                    await update.message.reply_text(f"Order {order_id} has been claimed.", reply_markup=get_main_menu())
+                    await update.message.reply_text(
+                        f"Order {order_id} has been claimed.\n\nDetails: {order.order_text}",
+                        reply_markup=get_main_menu()
+                    )
 
-                    # Notify the channel about the claim (with user handle)
-                    message = f"Order {order_id} has been claimed by {claimed_by}."
+                    message = f"Order {order_id} has been claimed by {claimed_by}.\n\nDetails: {order.order_text}"
                     await context.bot.send_message(chat_id=CHANNEL_ID, text=message)
 
                 else:
@@ -118,6 +159,11 @@ async def handle_message(update: Update, context: CallbackContext):
 
             except ValueError:
                 await update.message.reply_text("Invalid order ID.", reply_markup=get_main_menu())
+
+    except Exception as e:
+        await update.message.reply_text("An error occurred. Please try again later.")
+        print(f"Error: {e}")
+
     finally:
         session.close()
 
@@ -126,11 +172,20 @@ async def view_orders(update: Update, context: CallbackContext):
     session = session_local()
     orders = session.query(Order).filter_by(claimed=False).all()
     session.close()
-    
-    if orders:
-        message = "Available Orders:\n" + "\n".join([f'ID: {o.id} - {o.order_text}' for o in orders])
+
+    if not orders:
+        message = "No orders to be claimed right now!"
     else:
-        message = "No orders to be claimed right now!"    
+        chunks = []
+        order_texts = [f'ID: {o.id} - {o.order_text}' for o in orders]
+
+        # Send orders in multiple messages if they exceed 20 entries (avoiding Telegram's message limit)
+        for i in range(0, len(order_texts), 20):
+            chunks.append("\n".join(order_texts[i:i+20]))
+
+        for chunk in chunks:
+            await update.message.reply_text(f"Available Orders:\n{chunk}", reply_markup=get_main_menu())
+
     if update.callback_query:
         await update.callback_query.message.reply_text(message, reply_markup=get_main_menu())
     else:
