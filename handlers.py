@@ -131,60 +131,88 @@ async def handle_message(update: Update, context: CallbackContext):
         return
 
     state = state_data['state']
-    session = session_local()
 
     try:
-        if state == 'awaiting_order':
-            # User is typing an order
-            order_text = update.message.text.strip()
+        with session_local() as session:  # Use context manager to auto-close session
 
-            # Validate order length
-            if len(order_text) > MAX_ORDER_LENGTH:
+            if state == 'awaiting_order':
+                # User is typing an order
+                order_text = update.message.text.strip()
+
+                # Validate order input
+                if not order_text:
+                    await update.message.reply_text(
+                        messages.INVALID_ORDER_TEXT,  # Message for empty orders
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+                    return
+
+                # Validate order length
+                if len(order_text) > MAX_ORDER_LENGTH:
+                    await update.message.reply_text(
+                        messages.ORDER_TOO_LONG.format(max_length=MAX_ORDER_LENGTH, order_length=len(order_text)),
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+                    return
+
+                # Save the order to the database
+                new_order = Order(order_text=order_text, user_id=user_id, user_handle=update.message.from_user.username)
+                session.add(new_order)
+                session.commit()
+
+                del user_states[user_id]  # Clear state after order placement
+
+                # Confirm order placement
                 await update.message.reply_text(
-                    messages.ORDER_TOO_LONG.format(max_length=MAX_ORDER_LENGTH, order_length=len(order_text)),
+                    messages.ORDER_PLACED.format(order_id=new_order.id, order_text=order_text),
                     parse_mode="Markdown",
                     reply_markup=get_main_menu()
                 )
-                return
 
-            # Save the order to the database
-            new_order = Order(order_text=order_text, user_id=user_id, user_handle=update.message.from_user.username)
-            session.add(new_order)
-            session.commit()
+                # Notify food runners in the channel
+                bot_username = context.bot.username
+                keyboard = [
+                    [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{new_order.id}")],
+                    [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
 
-            del user_states[user_id]  # Clear state after order placement
+                await context.bot.send_message(
+                    chat_id=CHANNEL_ID,
+                    text=messages.NEW_ORDER.format(order_id=new_order.id, order_text=order_text),
+                    parse_mode="Markdown",
+                    reply_markup=reply_markup
+                )
 
-            # Confirm order placement
-            await update.message.reply_text(
-                messages.ORDER_PLACED.format(order_id=new_order.id, order_text=order_text),
-                parse_mode="Markdown",
-                reply_markup=get_main_menu()
-            )
+            elif state == 'awaiting_confirmation':
+                try:
+                    order_id = int(update.message.text.strip())  # The user types the order ID
+                    stored_order_id = state_data['order_id']
 
-            # Notify food runners in the channel
-            bot_username = context.bot.username
-            keyboard = [
-                [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{new_order.id}")],
-                [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await context.bot.send_message(
-                chat_id=CHANNEL_ID,
-                text=messages.NEW_ORDER.format(order_id=new_order.id, order_text=order_text),
-                parse_mode="Markdown",
-                reply_markup=reply_markup
-            )
+                    if order_id != stored_order_id:
+                        del user_states[user_id]
+                        await update.message.reply_text(
+                            messages.INVALID_ORDER_ID,
+                            parse_mode="Markdown",
+                            reply_markup=get_main_menu()
+                        )
+                        return
 
+                    # Lock and fetch the order for update
+                    order = session.query(Order).filter_by(id=order_id, claimed=False).with_for_update().first()
 
-        elif state == 'awaiting_confirmation':
-            # User is confirming an order claim
-            order_id = int(update.message.text.strip())  # The user types the order ID
-            stored_order_id = state_data['order_id']
+                    if not order:  # Order is either non-existent or already claimed
+                        del user_states[user_id]
+                        await update.message.reply_text(
+                            messages.CLAIM_FAILED,
+                            parse_mode="Markdown",
+                            reply_markup=get_main_menu()
+                        )
+                        return
 
-            if order_id == stored_order_id:
-                order = session.query(Order).filter_by(id=order_id, claimed=False).first()
-                if order:
+                    # Claim the order
                     order.claimed = True
                     session.commit()
 
@@ -215,7 +243,7 @@ async def handle_message(update: Update, context: CallbackContext):
                             )
                         except Exception as e:
                             print(f"Failed to notify orderer @{orderer_id}: {e}")
-                    
+
                     # Send a message to the channel
                     bot_username = context.bot.username
                     keyboard = [
@@ -230,28 +258,31 @@ async def handle_message(update: Update, context: CallbackContext):
                         reply_markup=reply_markup
                     )
 
-                else:
+                except ValueError:
                     del user_states[user_id]
                     await update.message.reply_text(
-                        messages.CLAIM_FAILED,
+                        messages.INVALID_ORDER_ID,
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
-            else:
-                del user_states[user_id]
-                await update.message.reply_text(
-                    messages.INVALID_ORDER_ID,
-                    parse_mode="Markdown",
-                    reply_markup=get_main_menu()
-                )
-        
-        elif state == 'awaiting_order_id':
-            # User is entering an order ID to claim
-            try:
-                order_id = int(update.message.text.strip())
 
-                order = session.query(Order).filter_by(id=order_id, claimed=False).with_for_update().first()
-                if order:
+            elif state == 'awaiting_order_id':
+                try:
+                    order_id = int(update.message.text.strip())
+
+                    # Lock and fetch the order for update
+                    order = session.query(Order).filter_by(id=order_id, claimed=False).with_for_update().first()
+
+                    if not order:  # Order does not exist or is already claimed
+                        del user_states[user_id]
+                        await update.message.reply_text(
+                            messages.CLAIM_FAILED,
+                            parse_mode="Markdown",
+                            reply_markup=get_main_menu()
+                        )
+                        return
+
+                    # Claim the order
                     order.claimed = True
                     session.commit()
 
@@ -297,28 +328,17 @@ async def handle_message(update: Update, context: CallbackContext):
                         reply_markup=reply_markup
                     )
 
-                else:
+                except ValueError:
                     del user_states[user_id]
                     await update.message.reply_text(
-                        messages.CLAIM_FAILED,
+                        messages.INVALID_ORDER_ID,
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
 
-            except ValueError:
-                del user_states[user_id]
-                await update.message.reply_text(
-                    messages.INVALID_ORDER_ID,
-                    parse_mode="Markdown",
-                    reply_markup=get_main_menu()
-                )
-
     except Exception as e:
-        await update.message.reply_text(messages.GENERAL_ERROR)
         print(f"Error: {e}")  # Debugging logs
-
-    finally:
-        session.close()
+        await update.message.reply_text(messages.GENERAL_ERROR)
 
 async def help_command(update: Update, context: CallbackContext):
     """Handles the /help command and provides users with available commands."""
