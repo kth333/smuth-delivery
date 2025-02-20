@@ -1,5 +1,6 @@
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import CallbackContext
+from telegram.helpers import escape_markdown
 from database import Order, session_local  # Importing Order model and session to interact with the database
 from utils import get_main_menu  # Importing the helper function for generating the keyboard
 import messages  # Importing the messages from messages.py
@@ -321,24 +322,26 @@ async def handle_message(update: Update, context: CallbackContext):
 
 async def help_command(update: Update, context: CallbackContext):
     """Handles the /help command and provides users with available commands."""
-    message = update.message if update.message else update.callback_query.message
+
+    message = update.effective_message
 
     help_text = (
-        "💡 *SmuthDelivery Bot Guide*\n\n"
+        "💡 *SmuthDelivery Bot Guide* 🚀\n\n"
         "📌 *How It Works:*\n"
-        "1️⃣ *Order Food:* Use `/order` to place an order with meal details and pickup location.\n"
-        "2️⃣ *View Available Orders:* Use `/vieworders` to check pending orders.\n"
-        "3️⃣ *Claim Orders:* If you're heading to a food vendor, use `/claim <order_id>` to pick up an order.\n"
+        "1️⃣ *Order Food:* Use /order to place an order with meal details and pickup location\\.\n"
+        "2️⃣ *View Available Orders:* Use /vieworders to check pending orders\\.\n"
+        "3️⃣ *Claim Orders:* If you're heading to a food vendor, use /claim order_id to pick up an order\\.\n"
         "📌 *Available Commands:*\n"
-        "🔹 /start - Start the bot and view the main menu\n"
-        "🔹 /order - Place a food order\n"
-        "🔹 /vieworders - See all available orders\n"
-        "🔹 /claim or /claim <order_id> - Claim an order for delivery\n"
-        "🔹 /help - View this help message\n\n"
-        "💡 *Tip:* Try placing an order using `/order` now!"
+        "🔹 /start \\- *Start the bot and view the main menu*\n"
+        "🔹 /order \\- *Place a food order*\n"
+        "🔹 /vieworders \\- *See all available orders*\n"
+        "🔹 /claim or /claim order_id \\- *Claim an order for delivery*\n"
+        "🔹 /help \\- *View this help message*\n\n"
+        "💡 *Tip:* Try placing an order using /order now\\!"
     )
 
-    await message.reply_text(help_text, parse_mode="Markdown", reply_markup=get_main_menu())
+    # Send the message with MarkdownV2 formatting
+    await message.reply_text(help_text, parse_mode="MarkdownV2", reply_markup=get_main_menu())
 
 async def handle_button(update: Update, context: CallbackContext):
     """Handles button presses from InlineKeyboardMarkup."""
