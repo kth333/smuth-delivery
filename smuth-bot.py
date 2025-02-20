@@ -58,8 +58,7 @@ async def start(update: Update, context: CallbackContext):
             if order:
                 order_details = f"Order ID: {order.id}\nDetails: {order.order_text}"
                 # Save the order ID for confirmation in user states
-                user_states[user.id] = {'state': 'awaiting_confirmation', 'order_id': order.id}
-                print(f"User {user.id} is in 'awaiting_confirmation' state. Order ID: {order.id}")
+                user_states[user_id] = {'state': 'awaiting_confirmation', 'order_id': order.id}
                 await update.message.reply_text(
                     f"You're about to claim the following order:\n\n{order_details}\n\nPlease confirm by sending the order ID.",
                     reply_markup=get_main_menu()
