@@ -12,7 +12,8 @@ WELCOME_TEXT = (
     "📌 /vieworders - See available food orders\n"
     "📌 /claim or /claim <order id> - Claim an order as a runner\n"
     "📌 /help - Get assistance\n\n"
-    "🔥 Start by placing an order using */order* now!"
+    "🔥 Start by placing an order using */order* now!\n\n"
+    "*Please ensure your Telegram chat is open to new contacts so that orderers/runners can communicate with you!*"
 )
 
 # Order placement instructions
@@ -29,6 +30,7 @@ ORDER_INSTRUCTIONS = (
 # Claim success notification
 CLAIM_SUCCESS_MESSAGE = (
     "✅ *Order {order_id} Successfully Claimed!*\n\n"
+    "👤 *Orderer's Telegram Handle:* @{orderer_handle}\n\n"
     "📌 *Order Details:*\n"
     "🍽 *Meal:* {order_text}\n"
     "🚀 *Next Steps:*\n"

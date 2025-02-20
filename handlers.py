@@ -81,7 +81,48 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
         if order:
             order.claimed = True
             session.commit()
-            await message.reply_text(messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text), reply_markup=get_main_menu())
+            
+            user_handle = update.message.from_user.username
+            claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
+            orderer_id = order.user_id   
+            
+            # Notify the claimer
+            await update.message.reply_text(
+                messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, orderer_handle=order.user_handle),
+                parse_mode="Markdown",
+                reply_markup=get_main_menu()
+            )
+            
+            orderer_id = order.user_id
+            
+            # Notify the orderer
+            if orderer_id:
+                try:
+                    await context.bot.send_message(
+                        chat_id=orderer_id,
+                        text=messages.ORDER_CLAIMED_NOTIFICATION.format(
+                            order_id=order_id,
+                            order_text=order.order_text,
+                            claimed_by=claimed_by
+                        ),
+                        parse_mode="Markdown"
+                    )
+                except Exception as e:
+                    print(f"Failed to notify orderer @{orderer_id}: {e}")
+
+            # Send a message to the channel
+            bot_username = context.bot.username
+            keyboard = [
+                [InlineKeyboardButton("Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            await context.bot.send_message(
+                chat_id=CHANNEL_ID,
+                text=messages.NEW_CLAIM.format(order_id=order_id, order_text=order.order_text),
+                parse_mode="Markdown",
+                reply_markup=reply_markup
+            )
         else:
             await message.reply_text(messages.CLAIM_FAILED.format(order_id=order_id), reply_markup=get_main_menu())
         session.close()
@@ -224,7 +265,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
                     # Notify the claimer
                     await update.message.reply_text(
-                        messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text),
+                        messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, orderer_handle=order.user_handle),
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
@@ -294,7 +335,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
                     # Notify the claimer
                     await update.message.reply_text(
-                        messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text),
+                        messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, orderer_handle=order.user_handle),
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
