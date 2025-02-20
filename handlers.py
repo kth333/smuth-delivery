@@ -81,7 +81,11 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
         if order:
             order.claimed = True
             session.commit()
-            await message.reply_text(messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text), reply_markup=get_main_menu())
+            await update.message.reply_text(
+                messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, orderer_handle=order.user_handle),
+                parse_mode="Markdown",
+                reply_markup=get_main_menu()
+            )
         else:
             await message.reply_text(messages.CLAIM_FAILED.format(order_id=order_id), reply_markup=get_main_menu())
         session.close()
@@ -224,7 +228,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
                     # Notify the claimer
                     await update.message.reply_text(
-                        messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text),
+                        messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, orderer_handle=order.user_handle),
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
@@ -294,7 +298,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
                     # Notify the claimer
                     await update.message.reply_text(
-                        messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text),
+                        messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, orderer_handle=order.user_handle),
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
