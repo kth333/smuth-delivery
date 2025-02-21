@@ -2,13 +2,13 @@ from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler
 import os
 from dotenv import load_dotenv
+from payment import *
 
 load_dotenv()
 TOKEN = os.getenv('TELEGRAM_TOKEN')
 
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, Sequence
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, declarative_base
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 
@@ -626,6 +626,7 @@ def main():
     app.add_handler(CommandHandler("vieworders", view_orders))
     app.add_handler(CommandHandler("claim", handle_claim))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("pay", send_payment_link))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(handle_button))
     app.run_polling()
