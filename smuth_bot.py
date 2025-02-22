@@ -3,6 +3,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 import os
 from dotenv import load_dotenv
 from payment import *
+from database import *
 
 load_dotenv()
 TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -10,24 +11,9 @@ TOKEN = os.getenv('TELEGRAM_TOKEN')
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, Sequence
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-DATABASE_URL = os.getenv('DATABASE_URL')
 
 # Maximum allowed characters for an order
 MAX_ORDER_LENGTH = 500
-
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
-Base = declarative_base()
-session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-class Order(Base):
-    __tablename__ = 'orders'
-    id = Column(Integer, Sequence('order_id_seq'), primary_key=True)
-    order_text = Column(String, nullable=False)
-    claimed = Column(Boolean, default=False)
-    user_id = Column(Integer, nullable=False)  # Store Telegram numeric ID
-    user_handle = Column(String, nullable=True)  # Store Telegram username
-
-Base.metadata.create_all(bind=engine)
 
 # To track user interaction states
 user_states = {}
@@ -140,7 +126,7 @@ async def handle_order(update: Update, context: CallbackContext):
         order_instructions, parse_mode="Markdown", reply_markup=get_main_menu()
     )
 
-CHANNEL_ID = os.getenv("CHANNEL_ID")
+    # CHANNEL_ID = os.getenv("CHANNEL_ID")
 
 # Handles the /claim command and asks for the order ID to claim
 async def handle_claim(update: Update, context: CallbackContext):
@@ -339,6 +325,7 @@ async def handle_claim(update: Update, context: CallbackContext):
 
 # Handles incoming text messages based on user states
 async def handle_message(update: Update, context: CallbackContext):
+    CHANNEL_ID = update.message.chat.id
     """Processes user messages based on their current state (ordering, claiming, etc.)."""
     user_id = update.message.from_user.id
     print(f"User {user_id} is sending a message. Current state: {user_states.get(user_id)}")
@@ -548,7 +535,6 @@ async def handle_message(update: Update, context: CallbackContext):
                     parse_mode="Markdown",
                     reply_markup=get_main_menu()
                 )
-
     except Exception as e:
         await update.message.reply_text("⚠️ An error occurred. Please try again later.")
         print(f"Error: {e}")  # Debugging logs
@@ -595,7 +581,6 @@ async def view_orders(update: Update, context: CallbackContext):
         )
 
 # Handles the /help command to provide users with available commands
-# Handles the /help command to provide users with available commands
 async def help_command(update: Update, context: CallbackContext):
     """Displays available commands and a short guide for new users."""
 
@@ -626,8 +611,9 @@ def main():
     app.add_handler(CommandHandler("vieworders", view_orders))
     app.add_handler(CommandHandler("claim", handle_claim))
     app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("pay", send_payment_link))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(CommandHandler("pay", handle_payment))
+    # app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, select_order))
     app.add_handler(CallbackQueryHandler(handle_button))
     app.run_polling()
 
