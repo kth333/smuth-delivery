@@ -11,15 +11,6 @@ app = Flask(__name__)
 
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
 
-def my_orders_menu():
-    keyboard = [
-        [InlineKeyboardButton("Place Order", callback_data='order')],
-        [InlineKeyboardButton("View Orders", callback_data='vieworders')],
-        [InlineKeyboardButton("Claim Order", callback_data='claim')],
-        [InlineKeyboardButton("Help", callback_data='help')]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
 def create_checkout_session(amount: int, currency: str, user_id): 
     success_url = f"https://t.me/your_bot?start=payment_success_{user_id}"  # Unique for the user
     cancel_url = f"https://t.me/your_bot?start=payment_cancel_{user_id}"
