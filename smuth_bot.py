@@ -24,6 +24,7 @@ def get_main_menu():
         [InlineKeyboardButton("Place Order", callback_data='order')],
         [InlineKeyboardButton("View Orders", callback_data='vieworders')],
         [InlineKeyboardButton("Claim Order", callback_data='claim')],
+        [InlineKeyboardButton("My Orders", callback_data='myorders')],
         [InlineKeyboardButton("Help", callback_data='help')]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -33,6 +34,7 @@ async def start(update: Update, context: CallbackContext):
     """Handles the /start command and provides detailed onboarding instructions."""
     user_id = update.effective_user.id
     args = context.args if context.args else []  # Ensure args is always a list
+    message = update.message or update.callback_query.message
 
     if args and args[0].startswith("claim_"):
         try:
@@ -87,7 +89,7 @@ async def start(update: Update, context: CallbackContext):
             "🔥 Start by placing an order using */order* now!"
         )
 
-        await update.message.reply_text(
+        await message.reply_text(
             welcome_text, parse_mode="Markdown", reply_markup=get_main_menu()
         )
 
@@ -95,14 +97,22 @@ async def start(update: Update, context: CallbackContext):
 async def handle_button(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
-
-    actions = {
-        'order': handle_order,
-        'vieworders': view_orders,
-        'claim': handle_claim,
-        'help': help_command
-    }
-    await actions[query.data](update, context)
+    
+    user_id = update.effective_user.id
+    
+    if query.data == 'handle_payment':
+        user_states[user_id]['state'] = 'awaiting_payment_amount'
+        await query.message.reply_text("Please enter your payment amount")
+    else:
+        actions = {
+            'start': start,
+            'order': handle_order,
+            'vieworders': view_orders,
+            'claim': handle_claim,
+            'myorders': handle_my_orders,
+            'help': help_command,
+        }
+        await actions[query.data](update, context)
 
 # Handles the /order command and asks for the order
 async def handle_order(update: Update, context: CallbackContext):
@@ -536,30 +546,32 @@ async def handle_message(update: Update, context: CallbackContext):
                     reply_markup=get_main_menu()
                 )
         elif state == 'selecting_order_id':
-            user_message = update.message.text.strip()  # Capture the user's input
-            my_user_id = update.message.from_user.id
-
-            # Logic to check if the order ID is valid
+            user_message = update.message.text.strip()
+            
             session = session_local()
-            order = session.query(Order).filter_by(id=user_message, user_id=my_user_id).first()
+            order = session.query(Order).filter_by(id=user_message, user_id=user_id).first()
             session.close()
-
-            # Check the user's current state
-            if order:
+            
+            keyboard = [
+                [InlineKeyboardButton("Make Payment", callback_data='handle_payment')],
+                [InlineKeyboardButton("Edit Order", callback_data='test')],
+                [InlineKeyboardButton("Delete Order", callback_data='test')],
+                [InlineKeyboardButton("Back", callback_data='start')]
+            ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            if order: 
                 await update.message.reply_text(
                     f"✅ *Order Selected:* {order.order_text}\n\n"
-                    "Please enter the amount below (SGD)",
-                    parse_mode="Markdown"
-                )
+                    "Please choose an option:", reply_markup=reply_markup)
+                
                 user_states[user_id] = {'selected_order': order.id}  # Store selected order ID
-                user_states[user_id] = {'state': 'selecting_payment_amount'} # Transition to payment state
-
-            else:
+            else: 
                 await update.message.reply_text(
                     "❌ Invalid Order ID. Please enter a valid Order ID or type /cancel to exit.",
                     parse_mode="Markdown"
                 )
-        elif state == 'selecting_payment_amount':
+        elif state == 'awaiting_payment_amount':
             amount = update.message.text
             if amount.isdigit():
                 await update.message.reply_text(
@@ -567,13 +579,14 @@ async def handle_message(update: Update, context: CallbackContext):
                     "Reply with *YES* to continue or *CANCEL* to abort.",
                     parse_mode="Markdown"
                 )
-                user_states[user_id] = {'state': 'payment_confirmation', 'amount': amount}
+                user_states[user_id]['state'] = 'awaiting_payment_confirmation'
+                user_states[user_id]['amount'] = amount
             else:
                 await update.message.reply_text(
                     "❌ Please enter a valid number",
                     parse_mode="Markdown"
                 )
-        elif state == 'payment_confirmation':
+        elif state == 'awaiting_payment_confirmation':
             # Handle the final confirmation for payment
             user_message = update.message.text
             if user_message.lower() == "yes":
@@ -662,7 +675,59 @@ async def help_command(update: Update, context: CallbackContext):
     )
 
     await update.effective_message.reply_text(help_text, parse_mode="Markdown", reply_markup=get_main_menu())
+
+async def handle_my_orders(update: Update, context: CallbackContext):
+    # Check if the update is from a callback query or a message
+    if update.callback_query and update.callback_query.from_user:
+        # Callback query update (button pressed)
+        user_id = update.callback_query.from_user.id
+    elif update.message and update.message.from_user:
+        # Message update (user sends a message)
+        user_id = update.message.from_user.id
     
+    message = update.message or update.callback_query.message
+    
+    # Determine if it's a message (command) or a callback query (button press)
+    if update.message:
+        user_message = update.message  # Handle /vieworders command
+    elif update.callback_query:
+        user_message = update.callback_query.message  # Handle inline button press
+        await update.callback_query.answer()  # Acknowledge the callback query
+    
+    session = session_local()
+    orders = session.query(Order).filter_by(user_id=user_id).all()
+    session.close()
+    
+    if orders:
+        order_list = [
+            f"📌 *Order ID:* {o.id}\n🍽 *Meal:* {o.order_text}\n" for o in orders
+        ]
+
+        # Break orders into multiple messages if too long (avoid Telegram message limit)
+        for i in range(0, len(order_list), 10):  # Send 10 orders per message
+            chunk = "\n".join(order_list[i:i + 10])
+            await user_message.reply_text(
+                f"🔍 *My Orders:*\n\n{chunk}\n\n ",
+                parse_mode="Markdown",
+            )
+    else:
+        await user_message.reply_text(
+            "⏳ You do not have any orders right now!*\n\n"
+            "💡 Please place an order using /order.",
+            parse_mode="Markdown",
+            reply_markup=get_main_menu()
+        )
+    
+    keyboard = [
+        [InlineKeyboardButton("Back", callback_data='start')]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    user_states[user_id] = {'state': 'selecting_order_id'}
+    
+    await message.reply_text("Please enter the Order ID", reply_markup=reply_markup)
+
 async def handle_payment(update: Update, context: CallbackContext):
     user_id = update.message.from_user.id
     
@@ -707,7 +772,7 @@ def main():
     app.add_handler(CommandHandler("vieworders", view_orders))
     app.add_handler(CommandHandler("claim", handle_claim))
     app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("pay", handle_payment))
+    app.add_handler(CommandHandler("myorders", handle_my_orders))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(handle_button))
     app.run_polling()
