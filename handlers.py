@@ -155,7 +155,7 @@ async def view_orders(update: Update, context: CallbackContext):
 
 async def handle_message(update: Update, context: CallbackContext):
     """Handles incoming messages based on user state (awaiting order, confirmation, etc.)."""
-    user_id = update.message.from_user.id
+    user_id = update.effective_user.id if update.effective_user else update.message.from_user.id
     if user_id not in user_states:
         await update.message.reply_text(
             "❓ Need help? Type /help or click on 'Help' below.",
