@@ -384,24 +384,26 @@ async def handle_message(update: Update, context: CallbackContext):
         print(traceback.format_exc())  # Print full traceback for debugging
         await update.message.reply_text(messages.GENERAL_ERROR)
 
+admin_handle = os.getenv("TELEGRAM_ADMIN_HANDLE")
+
 async def help_command(update: Update, context: CallbackContext):
-    """Handles the /help command and provides users with available commands."""
+    """Handles the /help command and provides users with instructions on how to order, deliver, and contact admins."""
 
     message = update.effective_message
 
     help_text = (
         "💡 *SmuthDelivery Bot Guide* 🚀\n\n"
         "📌 *How It Works:*\n"
-        "1️⃣ *Order Food:* Use /order to place an order with meal details and pickup location\\.\n"
-        "2️⃣ *View Available Orders:* Use /vieworders to check pending orders\\.\n"
-        "3️⃣ *Claim Orders:* If you're heading to a food vendor, use /claim order_id to pick up an order\\.\n"
-        "📌 *Available Commands:*\n"
-        "🔹 /start \\- *Start the bot and view the main menu*\n"
-        "🔹 /order \\- *Place a food order*\n"
-        "🔹 /vieworders \\- *See all available orders*\n"
-        "🔹 /claim or /claim order_id \\- *Claim an order for delivery*\n"
-        "🔹 /help \\- *View this help message*\n\n"
-        "💡 *Tip:* Try placing an order using /order now\\!"
+        "1️⃣ *Place an Order:* To place an order, use the bot to enter the details of your meal, pickup location, and preferred pickup time.\n"
+        "2️⃣ *Claim an Order (Food Runner):* If you're a food runner, check available orders and use the bot to claim one to pick up from a vendor.\n"
+        "3️⃣ *Delivering Food:* After claiming an order, pick up the food from the vendor and deliver it to the user’s specified location.\n"
+        "4️⃣ *Communicate via Telegram Chat:* Once you've claimed an order, communicate with the orderer via Telegram chat to finalize details.\n\n"
+        
+        
+        "🔹 This bot is still in very early development. Features are not perfect.\n"
+        f"🔹 If you have any issues or need help, contact {admin_handle} for help.\n\n"
+        
+        "💡 *Tip:* Place your order using the /order command and help us improve!"
     )
 
     # Send the message with MarkdownV2 formatting
