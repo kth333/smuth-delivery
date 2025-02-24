@@ -111,6 +111,8 @@ async def handle_button(update: Update, context: CallbackContext):
             'claim': handle_claim,
             'myorders': handle_my_orders,
             'help': help_command,
+            'edit_order': edit_order,
+            # 'delete_order': delete_order,
         }
         await actions[query.data](update, context)
 
@@ -554,8 +556,8 @@ async def handle_message(update: Update, context: CallbackContext):
             
             keyboard = [
                 [InlineKeyboardButton("Make Payment", callback_data='handle_payment')],
-                [InlineKeyboardButton("Edit Order", callback_data='test')],
-                [InlineKeyboardButton("Delete Order", callback_data='test')],
+                [InlineKeyboardButton("Edit Order", callback_data='edit_order')],
+                [InlineKeyboardButton("Delete Order", callback_data='delete_order')],
                 [InlineKeyboardButton("Back", callback_data='start')]
             ]
             
@@ -608,6 +610,25 @@ async def handle_message(update: Update, context: CallbackContext):
                     "❌ Invalid response. Please reply with *YES* to confirm payment or *CANCEL* to abort.",
                     parse_mode="Markdown"
                 )
+        elif state == 'editing_order':
+             
+            new_order_text = update.message.text
+            order_id = user_states.get(user_id)['selected_order']
+            
+            session = session_local()
+            order = session.query(Order).filter_by(id=order_id).first()
+            
+            order.order_text = new_order_text
+            session.commit()
+            session.close()
+            
+            del user_states[user_id]
+            
+            await update.message.reply_text(
+                "Your Order has been updated",
+                parse_mode="Markdown",
+                reply_markup=get_main_menu()
+            )
     except Exception as e:
         await update.message.reply_text("⚠️ An error occurred. Please try again later.")
         print(f"Error: {e}")  # Debugging logs
@@ -763,6 +784,43 @@ async def handle_payment(update: Update, context: CallbackContext):
             parse_mode="Markdown",
             reply_markup=get_main_menu()
         )
+        
+async def edit_order(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    
+    # message = update.message or update.callback_query.message
+    
+    if update.message:
+        message = update.message
+    elif update.callback_query:
+        message = update.callback_query.message
+    
+    order_id = user_states.get(user_id)['selected_order']
+    session = session_local()
+    print(f"Searching for order with ID: {order_id}")
+    order = session.query(Order).filter_by(id=order_id).first()
+    
+    if order:
+        if order.claimed:
+            await message.reply_text(
+                f"This order has been claimed."
+                "Please contact the runner directly to change your order.",
+                parse_mode="Markdown",
+                reply_markup=get_main_menu()
+            )
+            return
+        
+        user_states[user_id]['state'] = 'editing_order'
+        
+        await message.reply_text("Please enter your new order: ")
+        
+        
+    else:
+        await message.reply_text(
+            "❌ Invalid Order ID. Please enter a valid Order ID or type /cancel to exit.",
+            parse_mode="Markdown"
+        )
+    session.close()
 
 # Entry point of the bot, initializes handlers and starts polling
 def main():
