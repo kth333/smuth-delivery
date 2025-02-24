@@ -112,7 +112,7 @@ async def handle_button(update: Update, context: CallbackContext):
             'myorders': handle_my_orders,
             'help': help_command,
             'edit_order': edit_order,
-            # 'delete_order': delete_order,
+            'delete_order': delete_order,
         }
         await actions[query.data](update, context)
 
@@ -629,6 +629,31 @@ async def handle_message(update: Update, context: CallbackContext):
                 parse_mode="Markdown",
                 reply_markup=get_main_menu()
             )
+        elif state == 'deleting_order':
+            user_message = update.message.text
+            order_id = user_states.get(user_id)['selected_order']
+            
+            session = session_local()
+            order = session.query(Order).filter_by(id=order_id).first()
+            
+            if user_message.lower() == 'yes':
+                session.delete(order)
+                session.commit()
+                
+                await update.message.reply_text(
+                    "Your Order has been successfully deleted",
+                    parse_mode="Markdown",
+                    reply_markup=get_main_menu()
+                )
+            elif user_message.lower() == 'no':
+                await update.message.reply_text(
+                    "Failed to delete your order",
+                    parse_mode="Markdown",
+                    reply_markup=get_main_menu()
+                )
+            
+            session.close()
+                
     except Exception as e:
         await update.message.reply_text("⚠️ An error occurred. Please try again later.")
         print(f"Error: {e}")  # Debugging logs
@@ -788,7 +813,39 @@ async def handle_payment(update: Update, context: CallbackContext):
 async def edit_order(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     
-    # message = update.message or update.callback_query.message
+    if update.message:
+        message = update.message
+    elif update.callback_query:
+        message = update.callback_query.message
+    
+    order_id = user_states.get(user_id)['selected_order']
+    session = session_local()
+    print(f"Searching for order with ID: {order_id}")
+    order = session.query(Order).filter_by(id=order_id).first()
+    
+    if order:
+        if order.claimed:
+            await message.reply_text(
+                f"This order has been claimed.\n"
+                "Please contact the runner directly to change your order.",
+                parse_mode="Markdown",
+                reply_markup=get_main_menu()
+            )
+            return
+        
+        user_states[user_id]['state'] = 'editing_order'
+        
+        await message.reply_text("Please enter your new order: ")
+        
+    else:
+        await message.reply_text(
+            "❌ Invalid Order ID. Please enter a valid Order ID or type /cancel to exit.",
+            parse_mode="Markdown"
+        )
+    session.close()
+    
+async def delete_order(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
     
     if update.message:
         message = update.message
@@ -803,17 +860,16 @@ async def edit_order(update: Update, context: CallbackContext):
     if order:
         if order.claimed:
             await message.reply_text(
-                f"This order has been claimed."
-                "Please contact the runner directly to change your order.",
+                f"This order has been claimed.\n"
+                "Please contact the runner directly to delete your order.",
                 parse_mode="Markdown",
                 reply_markup=get_main_menu()
             )
             return
         
-        user_states[user_id]['state'] = 'editing_order'
+        user_states[user_id]['state'] = 'deleting_order'
         
-        await message.reply_text("Please enter your new order: ")
-        
+        await message.reply_text("Please reply with *YES* to confirm order deletion or *NO* to abort.")
         
     else:
         await message.reply_text(
