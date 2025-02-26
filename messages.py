@@ -79,6 +79,10 @@ NEW_CLAIM = (
     "📢 Order {order_id} has been claimed!\n\n🍽 Details: {order_text}"
 )
 
+EDITED_ORDER = (
+    "📢 Order ID: {order_id} has been edited.\n 🍽 Details: {order_text}"
+)
+
 # No available orders message
 NO_ORDERS_AVAILABLE = (
     "⏳ *No orders available right now!*\n\n"
