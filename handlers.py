@@ -396,7 +396,9 @@ async def handle_message(update: Update, context: CallbackContext):
                 if order: 
                     await update.message.reply_text(
                         f"✅ *Order Selected:* {order.order_text}\n\n"
-                        "Please choose an option:", reply_markup=reply_markup)
+                        "Please choose an option:",
+                        parse_mode="Markdown",
+                        reply_markup=reply_markup)
                 
                     user_states[user_id] = {'selected_order': order.id}  # Store selected order ID
                 else: 
@@ -502,7 +504,7 @@ async def help_command(update: Update, context: CallbackContext):
     help_text = (
         "💡 *SmuthDelivery Bot Guide* 🚀\n\n"
         "📌 *How It Works:*\n"
-        "1️⃣ *Place an Order:* To place an order, use the bot to enter the details of your meal, pickup location, and preferred pickup time.\n"
+        "1️⃣ *Place an Order:* To place an order, use the bot to enter the details of your meal, delivery location, and preferred delivery time.\n"
         "2️⃣ *Claim an Order \(Food Runner\):* If you're a food runner, check available orders and use the bot to claim one to pick up from a vendor.\n"
         "3️⃣ *Delivering Food:* After claiming an order, pick up the food from the vendor and deliver it to the user’s specified location.\n"
         "4️⃣ *Communicate via Telegram Chat:* Once you've claimed an order, communicate with the orderer via Telegram chat to finalize details.\n\n"
