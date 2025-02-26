@@ -462,6 +462,22 @@ async def handle_message(update: Update, context: CallbackContext):
                     parse_mode="Markdown",
                     reply_markup=get_main_menu()
                 )
+
+                # Notify food runners in the channel
+                bot_username = context.bot.username
+                keyboard = [
+                    [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{order_id}")],
+                    [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+
+                await context.bot.send_message(
+                    chat_id=CHANNEL_ID,
+                    text=messages.EDITED_ORDER.format(order_id=order_id, order_text=new_order_text),
+                    parse_mode="Markdown",
+                    reply_markup=reply_markup
+                )
+
             elif state == 'deleting_order':
                 user_message = update.message.text
                 order_id = user_states.get(user_id)['selected_order']
