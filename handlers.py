@@ -395,16 +395,18 @@ async def help_command(update: Update, context: CallbackContext):
         "💡 *SmuthDelivery Bot Guide* 🚀\n\n"
         "📌 *How It Works:*\n"
         "1️⃣ *Place an Order:* To place an order, use the bot to enter the details of your meal, pickup location, and preferred pickup time.\n"
-        "2️⃣ *Claim an Order (Food Runner):* If you're a food runner, check available orders and use the bot to claim one to pick up from a vendor.\n"
+        "2️⃣ *Claim an Order \(Food Runner\):* If you're a food runner, check available orders and use the bot to claim one to pick up from a vendor.\n"
         "3️⃣ *Delivering Food:* After claiming an order, pick up the food from the vendor and deliver it to the user’s specified location.\n"
         "4️⃣ *Communicate via Telegram Chat:* Once you've claimed an order, communicate with the orderer via Telegram chat to finalize details.\n\n"
-        
         
         "🔹 This bot is still in very early development. Features are not perfect.\n"
         f"🔹 If you have any issues or need help, contact {admin_handle} for help.\n\n"
         
-        "💡 *Tip:* Place your order using the /order command and help us improve!"
+        "📢 *Stay Updated:* Subscribe to our channel for real\-time updates on new orders: [Smuth Delivery]\(https://t.me/smuth\_delivery\)"
     )
+
+    # Escape the periods (.) for MarkdownV2
+    help_text = help_text.replace('.', '\\.')
 
     # Send the message with MarkdownV2 formatting
     await message.reply_text(help_text, parse_mode="MarkdownV2", reply_markup=get_main_menu())
