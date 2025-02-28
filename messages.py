@@ -3,10 +3,10 @@ WELCOME_TEXT = (
     "👋 *Welcome to SmuthDelivery!* 🚀\n\n"
     "🎓 Designed by SMU students for SMU students, SmuthDelivery connects busy students with food runners to get meals efficiently! 🍛🥡\n\n"
     "🛠️ *How It Works:*\n"
-    "1️⃣ *Order Food:* Use /order to place an order with your meal, pickup location, and time.\n"
+    "1️⃣ *Order Food:* Use /order to place an order with your meal, delivery location, and time.\n"
     "2️⃣ *Claim Orders:* If you're heading to a food vendor, check /vieworders and claim available orders.\n"
     "3️⃣ *Earn Extra Income:* Deliver food for fellow students and get paid!\n"
-    "4️⃣ *Pickup & Enjoy:* Get notified when your order is ready at the pickup point.\n\n"
+    "4️⃣ *Pickup & Enjoy:* Get notified when your order is ready at the delivery point.\n\n"
     "💡 *Quick Commands:*\n"
     "📌 /order - Place an order\n"
     "📌 /vieworders - See available food orders\n"
@@ -21,8 +21,8 @@ ORDER_INSTRUCTIONS = (
     "📝 *Placing an Order*\n\n"
     "📌 *Please enter your order details in the following format:*\n"
     "🍽 *Meal:* Menu number 1 at King Kong Curry\n"
-    "📍 *Pickup Location:* SCIS 1 SR 3-1\n"
-    "⏳ *Pickup Time:* Around 1.30 PM\n\n"
+    "📍 *Delivery Location:* SCIS 1 SR 3-1\n"
+    "⏳ *Delivery Time:* Around 1.30 PM\n\n"
     "✅ Example: *Menu number 1 at King Kong Curry, SCIS 1 SR 3-1, Around 1.30 PM*\n\n"
     "🚀 *Your order will be listed for food runners to claim!*"
 )
@@ -36,7 +36,7 @@ CLAIM_SUCCESS_MESSAGE = (
     "🚀 *Next Steps:*\n"
     "1️⃣ Buy the meal from the vendor.\n"
     "2️⃣ Confirm purchase via the bot.\n"
-    "3️⃣ Deliver to the pickup location.\n"
+    "3️⃣ Deliver to the delivery location.\n"
     "4️⃣ Receive your payment!\n\n"
     "💡 Stay updated with your claimed orders for smooth transactions!"
 )
@@ -77,6 +77,10 @@ NEW_ORDER = (
 
 NEW_CLAIM = (
     "📢 Order {order_id} has been claimed!\n\n🍽 Details: {order_text}"
+)
+
+EDITED_ORDER = (
+    "📢 Order ID: {order_id} has been edited.\n 🍽 Details: {order_text}"
 )
 
 # No available orders message

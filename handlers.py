@@ -4,6 +4,7 @@ from telegram.helpers import escape_markdown
 from database import Order, session_local  # Importing Order model and session to interact with the database
 from utils import get_main_menu  # Importing the helper function for generating the keyboard
 import messages  # Importing the messages from messages.py
+from payment import *
 import os
 
 CHANNEL_ID = os.getenv("CHANNEL_ID")
@@ -155,7 +156,7 @@ async def view_orders(update: Update, context: CallbackContext):
 
 async def handle_message(update: Update, context: CallbackContext):
     """Handles incoming messages based on user state (awaiting order, confirmation, etc.)."""
-    user_id = update.message.from_user.id
+    user_id = update.effective_user.id if update.effective_user else update.message.from_user.id
     if user_id not in user_states:
         await update.message.reply_text(
             "❓ Need help? Type /help or click on 'Help' below.",
@@ -376,6 +377,131 @@ async def handle_message(update: Update, context: CallbackContext):
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
+            elif state == 'selecting_order_id':
+                user_message = update.message.text.strip()
+            
+                session = session_local()
+                order = session.query(Order).filter_by(id=user_message, user_id=user_id).first()
+                session.close()
+            
+                keyboard = [
+                    [InlineKeyboardButton("Complete Order", callback_data='delete_order')], # Not finished yet
+                    [InlineKeyboardButton("Make Payment", callback_data='handle_payment')],
+                    [InlineKeyboardButton("Edit Order", callback_data='edit_order')],
+                    [InlineKeyboardButton("Delete Order", callback_data='delete_order')],
+                    [InlineKeyboardButton("Back", callback_data='start')]
+                ]
+            
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                if order: 
+                    await update.message.reply_text(
+                        f"✅ *Order Selected:* {order.order_text}\n\n"
+                        "Please choose an option:",
+                        parse_mode="Markdown",
+                        reply_markup=reply_markup)
+                
+                    user_states[user_id] = {'selected_order': order.id}  # Store selected order ID
+                else: 
+                    await update.message.reply_text(
+                        "❌ Invalid Order ID. Please enter a valid Order ID or type /cancel to exit.",
+                        parse_mode="Markdown"
+                    )
+            elif state == 'awaiting_payment_amount':
+                amount = update.message.text
+                if amount.isdigit():
+                    await update.message.reply_text(
+                        f"💳 *Would you like to proceed with payment?*\n"
+                        "Reply with *YES* to continue or *CANCEL* to abort.",
+                        parse_mode="Markdown"
+                    )
+                    user_states[user_id]['state'] = 'awaiting_payment_confirmation'
+                    user_states[user_id]['amount'] = amount
+                else:
+                    await update.message.reply_text(
+                        "❌ Please enter a valid number",
+                        parse_mode="Markdown"
+                    )
+            elif state == 'awaiting_payment_confirmation':
+                # Handle the final confirmation for payment
+                user_message = update.message.text
+                if user_message.lower() == "yes":
+                    await update.message.reply_text(
+                        "💳 Your payment is being processed. Thank you for your order!",
+                        parse_mode="Markdown"
+                    )
+                    amount = user_states.get(user_id)['amount']
+                    await send_payment_link(update, context, amount)
+                    del user_states[user_id]  # Clear user state after confirmation
+                elif user_message.lower() == "cancel":
+                    await update.message.reply_text(
+                        "❌ Payment has been canceled.",
+                        parse_mode="Markdown"
+                    )
+                    del user_states[user_id]  # Clear user data after cancelation
+                else:
+                    await update.message.reply_text(
+                        "❌ Invalid response. Please reply with *YES* to confirm payment or *CANCEL* to abort.",
+                        parse_mode="Markdown"
+                   )
+            elif state == 'editing_order':
+             
+                new_order_text = update.message.text
+                order_id = user_states.get(user_id)['selected_order']
+
+                session = session_local()
+                order = session.query(Order).filter_by(id=order_id).first()
+            
+                order.order_text = new_order_text
+                session.commit()
+                session.close()
+            
+                del user_states[user_id]
+            
+                await update.message.reply_text(
+                    "Your Order has been updated",
+                    parse_mode="Markdown",
+                    reply_markup=get_main_menu()
+                )
+
+                # Notify food runners in the channel
+                bot_username = context.bot.username
+                keyboard = [
+                    [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{order_id}")],
+                    [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+
+                await context.bot.send_message(
+                    chat_id=CHANNEL_ID,
+                    text=messages.EDITED_ORDER.format(order_id=order_id, order_text=new_order_text),
+                    parse_mode="Markdown",
+                    reply_markup=reply_markup
+                )
+
+            elif state == 'deleting_order':
+                user_message = update.message.text
+                order_id = user_states.get(user_id)['selected_order']
+
+                session = session_local()
+                order = session.query(Order).filter_by(id=order_id).first()
+
+                if user_message.lower() == 'yes':
+                    session.delete(order)
+                    session.commit()
+
+                    await update.message.reply_text(
+                        "Your Order has been successfully deleted",
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+                elif user_message.lower() == 'no':
+                    await update.message.reply_text(
+                        "Failed to delete your order",
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+            
+                session.close()
 
     except Exception as e:
         print(f"[ERROR] Exception occurred: {e}")  # Log the actual error
@@ -384,40 +510,385 @@ async def handle_message(update: Update, context: CallbackContext):
         print(traceback.format_exc())  # Print full traceback for debugging
         await update.message.reply_text(messages.GENERAL_ERROR)
 
+admin_handle = os.getenv("TELEGRAM_ADMIN_HANDLE")
+
 async def help_command(update: Update, context: CallbackContext):
-    """Handles the /help command and provides users with available commands."""
+    """Handles the /help command and provides users with instructions on how to order, deliver, and contact admins."""
 
     message = update.effective_message
 
     help_text = (
         "💡 *SmuthDelivery Bot Guide* 🚀\n\n"
         "📌 *How It Works:*\n"
-        "1️⃣ *Order Food:* Use /order to place an order with meal details and pickup location\\.\n"
-        "2️⃣ *View Available Orders:* Use /vieworders to check pending orders\\.\n"
-        "3️⃣ *Claim Orders:* If you're heading to a food vendor, use /claim order_id to pick up an order\\.\n"
-        "📌 *Available Commands:*\n"
-        "🔹 /start \\- *Start the bot and view the main menu*\n"
-        "🔹 /order \\- *Place a food order*\n"
-        "🔹 /vieworders \\- *See all available orders*\n"
-        "🔹 /claim or /claim order_id \\- *Claim an order for delivery*\n"
-        "🔹 /help \\- *View this help message*\n\n"
-        "💡 *Tip:* Try placing an order using /order now\\!"
+        "1️⃣ *Place an Order:* To place an order, use the bot to enter the details of your meal, delivery location, and preferred delivery time.\n"
+        "2️⃣ *Claim an Order \(Food Runner\):* If you're a food runner, check available orders and use the bot to claim one to pick up from a vendor.\n"
+        "3️⃣ *Delivering Food:* After claiming an order, pick up the food from the vendor and deliver it to the user’s specified location.\n"
+        "4️⃣ *Communicate via Telegram Chat:* Once you've claimed an order, communicate with the orderer via Telegram chat to finalize details.\n\n"
+        
+        "🔹 This bot is still in very early development. Features are not perfect.\n"
+        f"🔹 If you have any issues or need help, contact {admin_handle} for help.\n\n"
+        
+        "📢 *Stay Updated:* Subscribe to our channel for real\-time updates on new orders: [Smuth Delivery]\(https://t.me/smuth\_delivery\)"
     )
+
+    # Escape the periods (.) for MarkdownV2
+    help_text = help_text.replace('.', '\\.')
 
     # Send the message with MarkdownV2 formatting
     await message.reply_text(help_text, parse_mode="MarkdownV2", reply_markup=get_main_menu())
 
+async def handle_my_orders(update: Update, context: CallbackContext):
+    # Check if the update is from a callback query or a message
+    if update.callback_query and update.callback_query.from_user:
+        # Callback query update (button pressed)
+        user_id = update.callback_query.from_user.id
+    elif update.message and update.message.from_user:
+        # Message update (user sends a message)
+        user_id = update.message.from_user.id
+    
+    message = update.message or update.callback_query.message
+    
+    # Determine if it's a message (command) or a callback query (button press)
+    if update.message:
+        user_message = update.message  # Handle /vieworders command
+    elif update.callback_query:
+        user_message = update.callback_query.message  # Handle inline button press
+        await update.callback_query.answer()  # Acknowledge the callback query
+    
+    session = session_local()
+    orders = session.query(Order).filter_by(user_id=user_id).all()
+    session.close()
+    
+    if orders:
+        order_list = [
+            f"📌 *Order ID:* {o.id}\n🍽 *Meal:* {o.order_text}\n" for o in orders
+        ]
+
+        # Break orders into multiple messages if too long (avoid Telegram message limit)
+        for i in range(0, len(order_list), 10):  # Send 10 orders per message
+            chunk = "\n".join(order_list[i:i + 10])
+            await user_message.reply_text(
+                f"🔍 *My Orders:*\n\n{chunk}\n\n ",
+                parse_mode="Markdown",
+            )
+    else:
+        await user_message.reply_text(
+            "⏳ You do not have any orders right now!*\n\n"
+            "💡 Please place an order using /order.",
+            parse_mode="Markdown",
+            reply_markup=get_main_menu()
+        )
+    
+    keyboard = [
+        [InlineKeyboardButton("Back", callback_data='start')]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    user_states[user_id] = {'state': 'selecting_order_id'}
+    
+    await message.reply_text("Please enter the Order ID", reply_markup=reply_markup)
+
+async def handle_payment(update: Update, context: CallbackContext):
+    user_id = update.message.from_user.id
+    
+    # Determine if it's a message (command) or a callback query (button press)
+    if update.message:
+        user_message = update.message  # Handle /vieworders command
+    elif update.callback_query:
+        user_message = update.callback_query.message  # Handle inline button press
+        await update.callback_query.answer()  # Acknowledge the callback query
+    
+    # Query the database to get available orders
+    session = session_local()
+    orders = session.query(Order).filter_by(user_id=user_id).all()
+    session.close()
+    
+    if orders:
+        order_list = [
+            f"📌 *Order ID:* {o.id}\n🍽 *Meal:* {o.order_text}\n" for o in orders
+        ]
+
+        # Break orders into multiple messages if too long (avoid Telegram message limit)
+        for i in range(0, len(order_list), 10):  # Send 10 orders per message
+            chunk = "\n".join(order_list[i:i + 10])
+            await user_message.reply_text(
+                f"🔍 *My Orders:*\n\n{chunk}\n\n ",
+                parse_mode="Markdown",
+            )
+        user_states[user_id] = {'state': 'selecting_order_id'}
+    else:
+        await user_message.reply_text(
+            "⏳ You do not have any orders right now!*\n\n"
+            "💡 Please place an order using /order.",
+            parse_mode="Markdown",
+            reply_markup=get_main_menu()
+        )
+        
+async def edit_order(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    
+    if update.message:
+        message = update.message
+    elif update.callback_query:
+        message = update.callback_query.message
+    
+    order_id = user_states.get(user_id)['selected_order']
+    session = session_local()
+    print(f"Searching for order with ID: {order_id}")
+    order = session.query(Order).filter_by(id=order_id).first()
+    
+    if order:
+        if order.claimed:
+            await message.reply_text(
+                f"This order has been claimed.\n"
+                "Please contact the runner directly to change your order.",
+                parse_mode="Markdown",
+                reply_markup=get_main_menu()
+            )
+            return
+        
+        user_states[user_id]['state'] = 'editing_order'
+        
+        await message.reply_text("Please enter your new order: ")
+        
+    else:
+        await message.reply_text(
+            "❌ Invalid Order ID. Please enter a valid Order ID or type /cancel to exit.",
+            parse_mode="Markdown"
+        )
+    session.close()
+    
+async def delete_order(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    
+    if update.message:
+        message = update.message
+    elif update.callback_query:
+        message = update.callback_query.message
+    
+    order_id = user_states.get(user_id)['selected_order']
+    session = session_local()
+    print(f"Searching for order with ID: {order_id}")
+    order = session.query(Order).filter_by(id=order_id).first()
+    
+    if order:
+        if order.claimed:
+            await message.reply_text(
+                f"This order has been claimed.\n"
+                "Please contact the runner directly to delete your order.",
+                parse_mode="Markdown",
+                reply_markup=get_main_menu()
+            )
+            return
+        
+        user_states[user_id]['state'] = 'deleting_order'
+        
+        await message.reply_text("Please reply with *YES* to confirm order deletion or *NO* to abort.")
+        
+    else:
+        await message.reply_text(
+            "❌ Invalid Order ID. Please enter a valid Order ID or type /cancel to exit.",
+            parse_mode="Markdown"
+        )
+    session.close()
+
+async def handle_my_orders(update: Update, context: CallbackContext):
+    # Check if the update is from a callback query or a message
+    if update.callback_query and update.callback_query.from_user:
+        # Callback query update (button pressed)
+        user_id = update.callback_query.from_user.id
+    elif update.message and update.message.from_user:
+        # Message update (user sends a message)
+        user_id = update.message.from_user.id
+    
+    message = update.message or update.callback_query.message
+    
+    # Determine if it's a message (command) or a callback query (button press)
+    if update.message:
+        user_message = update.message  # Handle /vieworders command
+    elif update.callback_query:
+        user_message = update.callback_query.message  # Handle inline button press
+        await update.callback_query.answer()  # Acknowledge the callback query
+    
+    session = session_local()
+    orders = session.query(Order).filter_by(user_id=user_id).all()
+    session.close()
+    
+    if orders:
+        order_list = [
+            f"📌 *Order ID:* {o.id}\n🍽 *Meal:* {o.order_text}\n" for o in orders
+        ]
+
+        # Break orders into multiple messages if too long (avoid Telegram message limit)
+        for i in range(0, len(order_list), 10):  # Send 10 orders per message
+            chunk = "\n".join(order_list[i:i + 10])
+            await user_message.reply_text(
+                f"🔍 *My Orders:*\n\n{chunk}\n\n ",
+                parse_mode="Markdown",
+            )
+    else:
+        await user_message.reply_text(
+            "⏳ You do not have any orders right now!*\n\n"
+            "💡 Please place an order using /order.",
+            parse_mode="Markdown",
+            reply_markup=get_main_menu()
+        )
+    
+    keyboard = [
+        [InlineKeyboardButton("Back", callback_data='start')]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    user_states[user_id] = {'state': 'selecting_order_id'}
+    
+    await message.reply_text("Please enter the Order ID", reply_markup=reply_markup)
+
+async def handle_payment(update: Update, context: CallbackContext):
+    user_id = update.message.from_user.id
+    
+    # Determine if it's a message (command) or a callback query (button press)
+    if update.message:
+        user_message = update.message  # Handle /vieworders command
+    elif update.callback_query:
+        user_message = update.callback_query.message  # Handle inline button press
+        await update.callback_query.answer()  # Acknowledge the callback query
+    
+    # Query the database to get available orders
+    session = session_local()
+    orders = session.query(Order).filter_by(user_id=user_id).all()
+    session.close()
+    
+    if orders:
+        order_list = [
+            f"📌 *Order ID:* {o.id}\n🍽 *Meal:* {o.order_text}\n" for o in orders
+        ]
+
+        # Break orders into multiple messages if too long (avoid Telegram message limit)
+        for i in range(0, len(order_list), 10):  # Send 10 orders per message
+            chunk = "\n".join(order_list[i:i + 10])
+            await user_message.reply_text(
+                f"🔍 *My Orders:*\n\n{chunk}\n\n ",
+                parse_mode="Markdown",
+            )
+        user_states[user_id] = {'state': 'selecting_order_id'}
+    else:
+        await user_message.reply_text(
+            "⏳ You do not have any orders right now!*\n\n"
+            "💡 Please place an order using /order.",
+            parse_mode="Markdown",
+            reply_markup=get_main_menu()
+        )
+        
+async def edit_order(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    
+    if update.message:
+        message = update.message
+    elif update.callback_query:
+        message = update.callback_query.message
+    
+    order_id = user_states.get(user_id)['selected_order']
+    session = session_local()
+    print(f"Searching for order with ID: {order_id}")
+    order = session.query(Order).filter_by(id=order_id).first()
+    
+    if order:
+        if order.claimed:
+            await message.reply_text(
+                f"This order has been claimed.\n"
+                "Please contact the runner directly to change your order.",
+                parse_mode="Markdown",
+                reply_markup=get_main_menu()
+            )
+            return
+        
+        user_states[user_id]['state'] = 'editing_order'
+        
+        await message.reply_text("Please enter your new order: ")
+        
+    else:
+        await message.reply_text(
+            "❌ Invalid Order ID. Please enter a valid Order ID or type /cancel to exit.",
+            parse_mode="Markdown"
+        )
+    session.close()
+    
+async def delete_order(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    
+    if update.message:
+        message = update.message
+    elif update.callback_query:
+        message = update.callback_query.message
+    
+    order_id = user_states.get(user_id)['selected_order']
+    session = session_local()
+    print(f"Searching for order with ID: {order_id}")
+    order = session.query(Order).filter_by(id=order_id).first()
+    
+    if order:
+        if order.claimed:
+            await message.reply_text(
+                f"This order has been claimed.\n"
+                "Please contact the runner directly to delete your order.",
+                parse_mode="Markdown",
+                reply_markup=get_main_menu()
+            )
+            return
+        
+        user_states[user_id]['state'] = 'deleting_order'
+        
+        await message.reply_text("Please reply with *YES* to confirm order deletion or *NO* to abort.")
+        
+    else:
+        await message.reply_text(
+            "❌ Invalid Order ID. Please enter a valid Order ID or type /cancel to exit.",
+            parse_mode="Markdown"
+        )
+    session.close()
+
 async def handle_button(update: Update, context: CallbackContext):
     """Handles button presses from InlineKeyboardMarkup."""
-    query = update.callback_query  # Get the button press event
-    await query.answer()  # Acknowledge the button press
-
-    actions = {
-        'order': handle_order,
-        'vieworders': view_orders,
-        'claim': handle_claim,
-        'help': help_command
-    }
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = update.effective_user.id
+    
+    if query.data == 'handle_payment':
+        user_states[user_id]['state'] = 'awaiting_payment_amount'
+        await query.message.reply_text("Please enter your payment amount")
+    else:
+        actions = {
+            'start': start,
+            'order': handle_order,
+            'vieworders': view_orders,
+            'claim': handle_claim,
+            'myorders': handle_my_orders,
+            'help': help_command,
+            'edit_order': edit_order,
+            'delete_order': delete_order,
+        }
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = update.effective_user.id
+    
+    if query.data == 'handle_payment':
+        user_states[user_id]['state'] = 'awaiting_payment_amount'
+        await query.message.reply_text("Please enter your payment amount")
+    else:
+        actions = {
+            'start': start,
+            'order': handle_order,
+            'vieworders': view_orders,
+            'claim': handle_claim,
+            'myorders': handle_my_orders,
+            'help': help_command,
+            'edit_order': edit_order,
+            'delete_order': delete_order,
+        }
 
     if query.data in actions:
         await actions[query.data](update, context)
