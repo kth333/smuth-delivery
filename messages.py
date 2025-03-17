@@ -20,19 +20,19 @@ WELCOME_TEXT = (
 ORDER_INSTRUCTIONS_MEAL = (
     "📝 *Placing an Order*\n\n"
     "📌 *1. Please enter your meal:*\n"
-    "✅ Example: *Menu number 1 at King Kong Curry\n\n"
+    "✅ Example: *Menu number 1 at King Kong Curry*"
 )
 
 ORDER_INSTRUCTIONS_LOCATION = (
     "📝 *Placing an Order*\n\n"
     "📌 *2. Please enter the location you want your food to be delivered to:*\n"
-    "✅ Example: *SCIS 1 SR 3-1\n\n"
+    "✅ Example: *SCIS 1 SR 3-1*"
 )
 
 ORDER_INSTRUCTIONS_TIME = (
     "📝 *Placing an Order*\n\n"
     "📌 *3. Please enter the date/time you want to receive your order:*\n"
-    "✅ Example: *Today, around 1.30 PM*\n\n"
+    "✅ Example: *Today, around 1.30 PM*"
 )
 
 # Claim success notification

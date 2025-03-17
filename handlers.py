@@ -10,8 +10,8 @@ import os
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 MAX_ORDER_LENGTH = 100
 
-# Global variable to track user states
-user_states = {}
+user_states = {} # Global variable to track user states
+user_orders = {}  # Dictionary to store user orders
 
 async def start(update: Update, context: CallbackContext):
     """Handles the /start command and provides onboarding instructions."""
@@ -198,10 +198,13 @@ async def handle_message(update: Update, context: CallbackContext):
                         reply_markup=get_main_menu()
                     )
                     return
+                
+                if user_id not in user_orders:
+                    user_orders[user_id] = {}
 
                 # Store meal in temporary state (assuming state management handles this)
                 user_orders[user_id]['meal'] = order_text
-                user_states[user_id] = 'awaiting_order_location'  # Change state to next
+                user_states[user_id]['state'] = 'awaiting_order_location'
 
                 # Ask for location next
                 await update.message.reply_text(
@@ -234,7 +237,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
                 # Store location in temporary state
                 user_orders[user_id]['location'] = location_text
-                user_states[user_id] = 'awaiting_order_time'  # Change state to next
+                user_states[user_id]['state'] = 'awaiting_order_time'
 
                 # Ask for time next
                 await update.message.reply_text(
@@ -304,7 +307,6 @@ async def handle_message(update: Update, context: CallbackContext):
                     parse_mode="Markdown",
                     reply_markup=reply_markup
                 )
-
 
             elif state == 'awaiting_confirmation':
                 try:
