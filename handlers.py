@@ -81,9 +81,11 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
 
         if order:
             order.claimed = True
+            order.runner_id = user_id
+            user_handle = update.message.from_user.username
+            order.runner_handle = user_handle
             session.commit()
             
-            user_handle = update.message.from_user.username
             claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
             orderer_id = order.user_id   
             
@@ -338,9 +340,11 @@ async def handle_message(update: Update, context: CallbackContext):
 
                     # Claim the order
                     order.claimed = True
+                    order.runner_id = user_id
+                    user_handle = update.message.from_user.username
+                    order.runner_handle = user_handle
                     session.commit()
 
-                    user_handle = update.message.from_user.username
                     claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
                     orderer_id = order.user_id
 
@@ -410,9 +414,11 @@ async def handle_message(update: Update, context: CallbackContext):
 
                     # Claim the order
                     order.claimed = True
+                    order.runner_id = user_id
+                    user_handle = update.message.from_user.username
+                    order.runner_handle = user_handle
                     session.commit()
 
-                    user_handle = update.message.from_user.username
                     claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
                     orderer_id = order.user_id
 
