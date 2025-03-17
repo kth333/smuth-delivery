@@ -41,6 +41,8 @@ CLAIM_SUCCESS_MESSAGE = (
     "👤 *Orderer's Telegram Handle:* @{orderer_handle}\n\n"
     "📌 *Order Details:*\n"
     "🍽 *Meal:* {order_text}\n"
+    "📍 *Location:* {order_location}\n"
+    "⏳ *Date/Time:* {order_time}\n\n"
     "🚀 *Next Steps:*\n"
     "1️⃣ Buy the meal from the vendor.\n"
     "2️⃣ Confirm purchase via the bot.\n"
@@ -53,7 +55,9 @@ CLAIM_SUCCESS_MESSAGE = (
 ORDER_CLAIMED_NOTIFICATION = (
     "📢 *Your Order Has Been Claimed!*\n\n"
     "📌 *Order ID:* {order_id}\n"
-    "🍽 *Details:* {order_text}\n"
+    "🍽 *Meal:* {order_text}\n"
+    "📍 *Location:* {order_location}\n"
+    "⏳ *Date/Time:* {order_time}\n\n"
     "🚴 Claimed by: {claimed_by}\n\n"
     "📍 *Stay tuned for updates on delivery!*"
 )
@@ -74,21 +78,32 @@ ORDER_TOO_LONG = (
 ORDER_PLACED = (
     "✅ *Order Placed Successfully!*\n\n"
     "📌 *Order ID:* {order_id}\n"
-    "🍽 *Details:* {order_text}\n\n"
+    "🍽 *Meal:* {order_text}\n"
+    "📍 *Location:* {order_location}\n"
+    "⏳ *Date/Time:* {order_time}\n\n"
     "⚡ Your order has been listed! A food runner will claim it soon."
 )
 
 # New order notification in channel
 NEW_ORDER = (
-    "📢 New Order Available\n\n📌 Order ID: {order_id}\n🍽 Details: {order_text}"
+    "📢 New Order Available\n\n📌 Order ID: {order_id}\n"
+    "🍽 *Meal:* {order_text}\n"
+    "📍 *Location:* {order_location}\n"
+    "⏳ *Date/Time:* {order_time}"
 )
 
 NEW_CLAIM = (
-    "📢 Order {order_id} has been claimed!\n\n🍽 Details: {order_text}"
+    "📢 Order {order_id} has been claimed!\n"
+    "🍽 *Meal:* {order_text}\n"
+    "📍 *Location:* {order_location}\n"
+    "⏳ *Date/Time:* {order_time}"
 )
 
 EDITED_ORDER = (
-    "📢 Order ID: {order_id} has been edited.\n 🍽 Details: {order_text}"
+    "📢 Order ID: {order_id} has been edited.\n"
+    "🍽 *Meal:* {order_text}\n"
+    "📍 *Location:* {order_location}\n"
+    "⏳ *Date/Time:* {order_time}"
 )
 
 # No available orders message

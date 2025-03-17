@@ -89,7 +89,7 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
             
             # Notify the claimer
             await update.message.reply_text(
-                messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, orderer_handle=order.user_handle),
+                messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, order_location=order.location, order_time=order.time, orderer_handle=order.user_handle),
                 parse_mode="Markdown",
                 reply_markup=get_main_menu()
             )
@@ -104,6 +104,8 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
                         text=messages.ORDER_CLAIMED_NOTIFICATION.format(
                             order_id=order_id,
                             order_text=order.order_text,
+                            order_location=order.location,
+                            order_time=order.time,
                             claimed_by=claimed_by
                         ),
                         parse_mode="Markdown"
@@ -120,7 +122,7 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
 
             await context.bot.send_message(
                 chat_id=CHANNEL_ID,
-                text=messages.NEW_CLAIM.format(order_id=order_id, order_text=order.order_text),
+                text=messages.NEW_CLAIM.format(order_id=order_id, order_location=order.location, order_time=order.time, order_text=order.order_text),
                 parse_mode="Markdown",
                 reply_markup=reply_markup
             )
@@ -288,7 +290,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
                 # Confirm order placement
                 await update.message.reply_text(
-                    messages.ORDER_PLACED.format(order_id=new_order.id, order_text=new_order.order_text),
+                    messages.ORDER_PLACED.format(order_id=new_order.id, order_text=new_order.order_text, order_location=new_order.location, order_time=new_order.time),
                     parse_mode="Markdown",
                     reply_markup=get_main_menu()
                 )
@@ -296,14 +298,14 @@ async def handle_message(update: Update, context: CallbackContext):
                 # Notify food runners in the channel
                 bot_username = context.bot.username
                 keyboard = [
-                    [InlineKeyboardButton("Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{new_order.id}")],
-                    [InlineKeyboardButton("Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+                    [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{new_order.id}")],
+                    [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
 
                 await context.bot.send_message(
                     chat_id=CHANNEL_ID,
-                    text=messages.NEW_ORDER.format(order_id=new_order.id, order_text=new_order.order_text),
+                    text=messages.NEW_ORDER.format(order_id=new_order.id, order_text=new_order.order_text, order_location=new_order.location, order_time=new_order.time),
                     parse_mode="Markdown",
                     reply_markup=reply_markup
                 )
@@ -346,7 +348,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
                     # Notify the claimer
                     await update.message.reply_text(
-                        messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, orderer_handle=order.user_handle),
+                        messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, order_location=order.location, order_time=order.time, orderer_handle=order.user_handle),
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
@@ -359,6 +361,8 @@ async def handle_message(update: Update, context: CallbackContext):
                                 text=messages.ORDER_CLAIMED_NOTIFICATION.format(
                                     order_id=order_id,
                                     order_text=order.order_text,
+                                    order_location=order.location,
+                                    order_time=order.time,
                                     claimed_by=claimed_by
                                 ),
                                 parse_mode="Markdown"
@@ -375,7 +379,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
                     await context.bot.send_message(
                         chat_id=CHANNEL_ID,
-                        text=messages.NEW_CLAIM.format(order_id=order_id, order_text=order.order_text),
+                        text=messages.NEW_CLAIM.format(order_id=order_id, order_location=order.location, order_time=order.time, order_text=order.order_text),
                         parse_mode="Markdown",
                         reply_markup=reply_markup
                     )
@@ -416,7 +420,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
                     # Notify the claimer
                     await update.message.reply_text(
-                        messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, orderer_handle=order.user_handle),
+                        messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, order_location=order.location, order_time=order.time, orderer_handle=order.user_handle),
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
@@ -429,6 +433,8 @@ async def handle_message(update: Update, context: CallbackContext):
                                 text=messages.ORDER_CLAIMED_NOTIFICATION.format(
                                     order_id=order_id,
                                     order_text=order.order_text,
+                                    order_location=order.location,
+                                    order_time=order.time,
                                     claimed_by=claimed_by
                                 ),
                                 parse_mode="Markdown"
@@ -445,7 +451,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
                     await context.bot.send_message(
                         chat_id=CHANNEL_ID,
-                        text=messages.NEW_CLAIM.format(order_id=order_id, order_text=order.order_text),
+                        text=messages.NEW_CLAIM.format(order_id=order_id, order_location=order.location, order_time=order.time, order_text=order.order_text),
                         parse_mode="Markdown",
                         reply_markup=reply_markup
                     )
@@ -553,7 +559,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
                 await context.bot.send_message(
                     chat_id=CHANNEL_ID,
-                    text=messages.EDITED_ORDER.format(order_id=order_id, order_text=new_order_text),
+                    text=messages.EDITED_ORDER.format(order_id=order_id, order_text=new_order_text, order_location=new_order_location, order_time=new_order_time),
                     parse_mode="Markdown",
                     reply_markup=reply_markup
                 )
