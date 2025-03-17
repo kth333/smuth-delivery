@@ -20,6 +20,8 @@ class Order(Base):
     __tablename__ = 'orders'
     id = Column(Integer, Sequence('order_id_seq'), primary_key=True)
     order_text = Column(String, nullable=False)
+    location = Column(String, nullable=True)
+    time = Column(String, nullable=True)
     claimed = Column(Boolean, default=False)
     user_id = Column(Integer, nullable=False)
     user_handle = Column(String, nullable=True)
