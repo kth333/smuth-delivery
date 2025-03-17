@@ -8,7 +8,7 @@ from payment import *
 import os
 
 CHANNEL_ID = os.getenv("CHANNEL_ID")
-MAX_ORDER_LENGTH = 500
+MAX_ORDER_LENGTH = 100
 
 # Global variable to track user states
 user_states = {}
@@ -41,10 +41,10 @@ async def handle_order(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     message = update.message if update.message else update.callback_query.message
 
-    user_states[user_id] = {'state': 'awaiting_order'}  # Set the state to 'awaiting_order'
+    user_states[user_id] = {'state': 'awaiting_order_meal'}  # Set the state to 'awaiting_order'
 
     await message.reply_text(
-        messages.ORDER_INSTRUCTIONS, parse_mode="Markdown", reply_markup=get_main_menu()
+        messages.ORDER_INSTRUCTIONS_MEAL, parse_mode="Markdown", reply_markup=get_main_menu()
     )
 
 async def handle_claim(update: Update, context: CallbackContext):
@@ -177,11 +177,11 @@ async def handle_message(update: Update, context: CallbackContext):
     try:
         with session_local() as session:  # Use context manager to auto-close session
 
-            if state == 'awaiting_order':
-                # User is typing an order
+            if state == 'awaiting_order_meal':
+                # User is typing a meal order
                 order_text = update.message.text.strip()
 
-                # Validate order input
+                # Validate meal input
                 if not order_text:
                     await update.message.reply_text(
                         messages.INVALID_ORDER_TEXT,  # Message for empty orders
@@ -199,16 +199,57 @@ async def handle_message(update: Update, context: CallbackContext):
                     )
                     return
 
+                # Store meal in temporary state (assuming state management handles this)
+                user_orders[user_id]['meal'] = order_text
+                user_states[user_id] = 'awaiting_order_location'  # Change state to next
+
+                # Ask for location next
+                await update.message.reply_text(
+                    messages.ORDER_INSTRUCTIONS_LOCATION,
+                    parse_mode="Markdown",
+                    reply_markup=get_main_menu()
+                )
+
+            elif state == 'awaiting_order_location':
+                # User is typing a location
+                location_text = update.message.text.strip()
+
+                # Store location in temporary state
+                user_orders[user_id]['location'] = location_text
+                user_states[user_id] = 'awaiting_order_time'  # Change state to next
+
+                # Ask for time next
+                await update.message.reply_text(
+                    messages.ORDER_INSTRUCTIONS_TIME,
+                    parse_mode="Markdown",
+                    reply_markup=get_main_menu()
+                )
+
+            elif state == 'awaiting_order_time':
+                # User is typing a time
+                time_text = update.message.text.strip()
+    
+                # Store time in temporary state
+                user_orders[user_id]['time'] = time_text
+
                 # Save the order to the database
-                new_order = Order(order_text=order_text, user_id=user_id, user_handle=update.message.from_user.username)
+                new_order = Order(
+                    order_text=user_orders[user_id]['meal'], 
+                    location=user_orders[user_id]['location'],
+                    time=user_orders[user_id]['time'],
+                    user_id=user_id, 
+                    user_handle=update.message.from_user.username
+                )
                 session.add(new_order)
                 session.commit()
 
-                del user_states[user_id]  # Clear state after order placement
+                # Clear state after order placement
+                del user_states[user_id]
+                del user_orders[user_id]  # Clear order from temporary storage
 
                 # Confirm order placement
                 await update.message.reply_text(
-                    messages.ORDER_PLACED.format(order_id=new_order.id, order_text=order_text),
+                    messages.ORDER_PLACED.format(order_id=new_order.id, order_text=new_order.order_text),
                     parse_mode="Markdown",
                     reply_markup=get_main_menu()
                 )
@@ -216,17 +257,18 @@ async def handle_message(update: Update, context: CallbackContext):
                 # Notify food runners in the channel
                 bot_username = context.bot.username
                 keyboard = [
-                    [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{new_order.id}")],
-                    [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+                    [InlineKeyboardButton("Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{new_order.id}")],
+                    [InlineKeyboardButton("Place an Order", url=f"https://t.me/{bot_username}?start=order")]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
 
                 await context.bot.send_message(
                     chat_id=CHANNEL_ID,
-                    text=messages.NEW_ORDER.format(order_id=new_order.id, order_text=order_text),
+                    text=messages.NEW_ORDER.format(order_id=new_order.id, order_text=new_order.order_text),
                     parse_mode="Markdown",
                     reply_markup=reply_markup
                 )
+
 
             elif state == 'awaiting_confirmation':
                 try:

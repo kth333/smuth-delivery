@@ -5,7 +5,7 @@ WELCOME_TEXT = (
     "🛠️ *How It Works:*\n"
     "1️⃣ *Order Food:* Use /order to place an order with your meal, delivery location, and time.\n"
     "2️⃣ *Claim Orders:* If you're heading to a food vendor, check /vieworders and claim available orders.\n"
-    "3️⃣ *Earn Extra Income:* Deliver food for fellow students and get paid!\n"
+    "3️⃣ *Earn Extra Income:* Earn easy income by delivering food and receiving a delivery fee!\n"
     "4️⃣ *Pickup & Enjoy:* Get notified when your order is ready at the delivery point.\n\n"
     "💡 *Quick Commands:*\n"
     "📌 /order - Place an order\n"
@@ -17,14 +17,22 @@ WELCOME_TEXT = (
 )
 
 # Order placement instructions
-ORDER_INSTRUCTIONS = (
+ORDER_INSTRUCTIONS_MEAL = (
     "📝 *Placing an Order*\n\n"
-    "📌 *Please enter your order details in the following format:*\n"
-    "🍽 *Meal:* Menu number 1 at King Kong Curry\n"
-    "📍 *Delivery Location:* SCIS 1 SR 3-1\n"
-    "⏳ *Delivery Time:* Around 1.30 PM\n\n"
-    "✅ Example: *Menu number 1 at King Kong Curry, SCIS 1 SR 3-1, Around 1.30 PM*\n\n"
-    "🚀 *Your order will be listed for food runners to claim!*"
+    "📌 *1. Please enter your meal:*\n"
+    "✅ Example: *Menu number 1 at King Kong Curry\n\n"
+)
+
+ORDER_INSTRUCTIONS_LOCATION = (
+    "📝 *Placing an Order*\n\n"
+    "📌 *2. Please enter the location you want your food to be delivered to:*\n"
+    "✅ Example: *SCIS 1 SR 3-1\n\n"
+)
+
+ORDER_INSTRUCTIONS_TIME = (
+    "📝 *Placing an Order*\n\n"
+    "📌 *3. Please enter the date/time you want to receive your order:*\n"
+    "✅ Example: *Today, around 1.30 PM*\n\n"
 )
 
 # Claim success notification
@@ -58,8 +66,8 @@ INVALID_ORDER_ID = "❌ Invalid Order ID. Please enter a valid number."
 
 # Order length error
 ORDER_TOO_LONG = (
-    "⚠️ Your order is too long! Please limit your order to {max_length} characters.\n\n"
-    "📝 *Your order length:* {order_length} characters."
+    "⚠️ Your message is too long! Please limit it to {max_length} characters.\n\n"
+    "📝 *Your message length:* {order_length} characters."
 )
 
 # Order placement confirmation
