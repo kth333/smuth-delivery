@@ -18,31 +18,38 @@ WELCOME_TEXT = (
 
 # Order placement instructions
 ORDER_INSTRUCTIONS_MEAL = (
-    "📝 *Placing an Order*\n\n"
-    "📌 *1. Please enter your meal:*\n"
+    "📝 *Placing an Order* We will ask for delivery location, time and additional info next.\n\n"
+    "📌 *Step 1. Please enter your meal:*\n"
     "✅ Example: *Menu number 1 at King Kong Curry*"
 )
 
 ORDER_INSTRUCTIONS_LOCATION = (
     "📝 *Placing an Order*\n\n"
-    "📌 *2. Please enter the location you want your food to be delivered to:*\n"
+    "📌 *Step 2. Please enter the location you want your food to be delivered to:*\n"
     "✅ Example: *SCIS 1 SR 3-1*"
 )
 
 ORDER_INSTRUCTIONS_TIME = (
     "📝 *Placing an Order*\n\n"
-    "📌 *3. Please enter the date/time you want to receive your order:*\n"
+    "📌 *Step 3. Please enter the date/time you want to receive your order:*\n"
     "✅ Example: *Today, around 1.30 PM*"
+)
+
+ORDER_INSTRUCTIONS_DETAILS = (
+    "📝 *Placing an Order*\n\n"
+    "📌 *Step 4. Please enter any additional info (enter \"none\" if not applicable):*\n"
+    "✅ Example: *none*"
 )
 
 # Claim success notification
 CLAIM_SUCCESS_MESSAGE = (
     "✅ *Order {order_id} Successfully Claimed!*\n\n"
     "👤 *Orderer's Telegram Handle:* @{orderer_handle}\n\n"
-    "📌 *Order Details:*\n"
+    "📌 *Order Info:*\n"
     "🍽 *Meal:* {order_text}\n"
     "📍 *Location:* {order_location}\n"
     "⏳ *Date/Time:* {order_time}\n\n"
+    "ℹ️ *Details:* {order_details}\n\n"
     "🚀 *Next Steps:*\n"
     "1️⃣ Buy the meal from the vendor.\n"
     "2️⃣ Confirm purchase via the bot.\n"
@@ -57,7 +64,8 @@ ORDER_CLAIMED_NOTIFICATION = (
     "📌 *Order ID:* {order_id}\n"
     "🍽 *Meal:* {order_text}\n"
     "📍 *Location:* {order_location}\n"
-    "⏳ *Date/Time:* {order_time}\n\n"
+    "⏳ *Date/Time:* {order_time}\n"
+    "ℹ️ *Details:* {order_details}\n\n"
     "🚴 Claimed by: {claimed_by}\n\n"
     "📍 *Stay tuned for updates on delivery!*"
 )
@@ -74,13 +82,19 @@ ORDER_TOO_LONG = (
     "📝 *Your message length:* {order_length} characters."
 )
 
+ORDER_DETAILS_TOO_LONG = (
+    "⚠️ Your message is too long! Please limit it to {max_length} characters.\n\n"
+    "📝 *Your message length:* {order_length} characters."
+)
+
 # Order placement confirmation
 ORDER_PLACED = (
     "✅ *Order Placed Successfully!*\n\n"
     "📌 *Order ID:* {order_id}\n"
     "🍽 *Meal:* {order_text}\n"
     "📍 *Location:* {order_location}\n"
-    "⏳ *Date/Time:* {order_time}\n\n"
+    "⏳ *Date/Time:* {order_time}\n"
+    "ℹ️ *Details:* {order_details}\n\n"
     "⚡ Your order has been listed! A food runner will claim it soon."
 )
 
@@ -89,14 +103,16 @@ NEW_ORDER = (
     "📢 New Order Available\n\n📌 Order ID: {order_id}\n"
     "🍽 *Meal:* {order_text}\n"
     "📍 *Location:* {order_location}\n"
-    "⏳ *Date/Time:* {order_time}"
+    "⏳ *Date/Time:* {order_time}\n"
+    "ℹ️ *Details:* {order_details}"
 )
 
 NEW_CLAIM = (
     "📢 Order {order_id} has been claimed!\n"
     "🍽 *Meal:* {order_text}\n"
     "📍 *Location:* {order_location}\n"
-    "⏳ *Date/Time:* {order_time}"
+    "⏳ *Date/Time:* {order_time}\n"
+    "ℹ️ *Details:* {order_details}"
 )
 
 EDITED_ORDER = (
@@ -104,6 +120,7 @@ EDITED_ORDER = (
     "🍽 *Meal:* {order_text}\n"
     "📍 *Location:* {order_location}\n"
     "⏳ *Date/Time:* {order_time}"
+    "ℹ️ *Details:* {order_details}\n\n"
 )
 
 # No available orders message

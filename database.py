@@ -33,6 +33,7 @@ class Order(Base):
     order_text = Column(String, nullable=False)
     location = Column(String, nullable=True)
     time = Column(String, nullable=True)
+    details = Column(String, nullable=True)
     claimed = Column(Boolean, default=False)
     user_id = Column(Integer, nullable=False)
     runner_id = Column(Integer, nullable=True)

@@ -9,6 +9,7 @@ import os
 
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 MAX_ORDER_LENGTH = 100
+MAX_ORDER_DETAILS_LENGTH = 500
 
 user_states = {} # Global variable to track user states
 user_orders = {}  # Dictionary to store user orders
@@ -91,7 +92,7 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
             
             # Notify the claimer
             await update.message.reply_text(
-                messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, order_location=order.location, order_time=order.time, orderer_handle=order.user_handle),
+                messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, order_location=order.location, order_time=order.time, order_details=order.details, orderer_handle=order.user_handle),
                 parse_mode="Markdown",
                 reply_markup=get_main_menu()
             )
@@ -108,6 +109,7 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
                             order_text=order.order_text,
                             order_location=order.location,
                             order_time=order.time,
+                            order_details=order.details,
                             claimed_by=claimed_by
                         ),
                         parse_mode="Markdown"
@@ -124,7 +126,7 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
 
             await context.bot.send_message(
                 chat_id=CHANNEL_ID,
-                text=messages.NEW_CLAIM.format(order_id=order_id, order_location=order.location, order_time=order.time, order_text=order.order_text),
+                text=messages.NEW_CLAIM.format(order_id=order_id, order_location=order.location, order_time=order.time, order_text=order.order_text, order_details=order.details),
                 parse_mode="Markdown",
                 reply_markup=reply_markup
             )
@@ -233,7 +235,7 @@ async def handle_message(update: Update, context: CallbackContext):
                 # Validate location length
                 if len(location_text) > MAX_ORDER_LENGTH:
                     await update.message.reply_text(
-                        messages.ORDER_TOO_LONG.format(max_length=MAX_ORDER_LENGTH, order_length=len(order_text)),
+                        messages.ORDER_TOO_LONG.format(max_length=MAX_ORDER_LENGTH, order_length=len(location_text)),
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
@@ -266,7 +268,7 @@ async def handle_message(update: Update, context: CallbackContext):
                 # Validate time length
                 if len(time_text) > MAX_ORDER_LENGTH:
                     await update.message.reply_text(
-                        messages.ORDER_TOO_LONG.format(max_length=MAX_ORDER_LENGTH, order_length=len(order_text)),
+                        messages.ORDER_TOO_LONG.format(max_length=MAX_ORDER_LENGTH, order_length=len(time_text)),
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
@@ -274,12 +276,46 @@ async def handle_message(update: Update, context: CallbackContext):
 
                 # Store time in temporary state
                 user_orders[user_id]['time'] = time_text
+                user_states[user_id]['state'] = 'awaiting_order_details'
+
+                # Ask for details next
+                await update.message.reply_text(
+                    messages.ORDER_INSTRUCTIONS_DETAILS,
+                    parse_mode="Markdown",
+                    reply_markup=get_main_menu()
+                )
+
+            elif state == 'awaiting_order_details':
+                # User is typing details
+                details_text = update.message.text.strip()
+                
+                # Validate details input
+                if not details_text:
+                    await update.message.reply_text(
+                        messages.INVALID_ORDER_TEXT,  # Message for empty orders
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+                    return
+
+                # Validate details length
+                if len(details_text) > MAX_ORDER_DETAILS_LENGTH:
+                    await update.message.reply_text(
+                        messages.ORDER_DETAILS_TOO_LONG.format(max_length=MAX_ORDER_DETAILS_LENGTH, order_length=len(details_text)),
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+                    return
+
+                # Store details in temporary state
+                user_orders[user_id]['details'] = details_text
 
                 # Save the order to the database
                 new_order = Order(
                     order_text=user_orders[user_id]['meal'], 
                     location=user_orders[user_id]['location'],
                     time=user_orders[user_id]['time'],
+                    details=user_orders[user_id]['details'],
                     user_id=user_id, 
                     user_handle=update.message.from_user.username
                 )
@@ -292,7 +328,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
                 # Confirm order placement
                 await update.message.reply_text(
-                    messages.ORDER_PLACED.format(order_id=new_order.id, order_text=new_order.order_text, order_location=new_order.location, order_time=new_order.time),
+                    messages.ORDER_PLACED.format(order_id=new_order.id, order_text=new_order.order_text, order_location=new_order.location, order_time=new_order.time, order_details=new_order.details),
                     parse_mode="Markdown",
                     reply_markup=get_main_menu()
                 )
@@ -307,7 +343,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
                 await context.bot.send_message(
                     chat_id=CHANNEL_ID,
-                    text=messages.NEW_ORDER.format(order_id=new_order.id, order_text=new_order.order_text, order_location=new_order.location, order_time=new_order.time),
+                    text=messages.NEW_ORDER.format(order_id=new_order.id, order_text=new_order.order_text, order_location=new_order.location, order_time=new_order.time, order_details=new_order.details),
                     parse_mode="Markdown",
                     reply_markup=reply_markup
                 )
@@ -352,7 +388,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
                     # Notify the claimer
                     await update.message.reply_text(
-                        messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, order_location=order.location, order_time=order.time, orderer_handle=order.user_handle),
+                        messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, order_location=order.location, order_time=order.time, order_details=order.details, orderer_handle=order.user_handle),
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
@@ -367,6 +403,7 @@ async def handle_message(update: Update, context: CallbackContext):
                                     order_text=order.order_text,
                                     order_location=order.location,
                                     order_time=order.time,
+                                    order_details=order.details,
                                     claimed_by=claimed_by
                                 ),
                                 parse_mode="Markdown"
@@ -383,7 +420,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
                     await context.bot.send_message(
                         chat_id=CHANNEL_ID,
-                        text=messages.NEW_CLAIM.format(order_id=order_id, order_location=order.location, order_time=order.time, order_text=order.order_text),
+                        text=messages.NEW_CLAIM.format(order_id=order_id, order_location=order.location, order_time=order.time, order_text=order.order_text, order_details=order.details),
                         parse_mode="Markdown",
                         reply_markup=reply_markup
                     )
@@ -426,7 +463,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
                     # Notify the claimer
                     await update.message.reply_text(
-                        messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, order_location=order.location, order_time=order.time, orderer_handle=order.user_handle),
+                        messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, order_location=order.location, order_time=order.time, order_details=order.details, orderer_handle=order.user_handle),
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
@@ -441,6 +478,7 @@ async def handle_message(update: Update, context: CallbackContext):
                                     order_text=order.order_text,
                                     order_location=order.location,
                                     order_time=order.time,
+                                    order_details=order.details,
                                     claimed_by=claimed_by
                                 ),
                                 parse_mode="Markdown"
@@ -457,7 +495,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
                     await context.bot.send_message(
                         chat_id=CHANNEL_ID,
-                        text=messages.NEW_CLAIM.format(order_id=order_id, order_location=order.location, order_time=order.time, order_text=order.order_text),
+                        text=messages.NEW_CLAIM.format(order_id=order_id, order_location=order.location, order_time=order.time, order_text=order.order_text, order_details=order.details),
                         parse_mode="Markdown",
                         reply_markup=reply_markup
                     )
