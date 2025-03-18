@@ -538,14 +538,20 @@ async def handle_message(update: Update, context: CallbackContext):
                     )
             elif state == 'awaiting_payment_amount':
                 amount = update.message.text
-                if amount.isdigit():
+                
+                valid, amount_cents = validate_and_convert_amount(amount)
+                
+                if valid:
+                    amount_dollars = Decimal(amount_cents) / Decimal('100')
+                    
+                    user_states[user_id]['state'] = 'awaiting_payment_confirmation'
+                    user_states[user_id]['amount'] = amount_cents
+                    
                     await update.message.reply_text(
-                        f"💳 *Would you like to proceed with payment?*\n"
+                        f"💳 You entered *SGD{amount_dollars:.2f}*. Would you like to proceed with payment?\n"
                         "Reply with *YES* to continue or *CANCEL* to abort.",
                         parse_mode="Markdown"
                     )
-                    user_states[user_id]['state'] = 'awaiting_payment_confirmation'
-                    user_states[user_id]['amount'] = amount
                 else:
                     await update.message.reply_text(
                         "❌ Please enter a valid number",
@@ -564,15 +570,17 @@ async def handle_message(update: Update, context: CallbackContext):
                     del user_states[user_id]  # Clear user state after confirmation
                 elif user_message.lower() == "cancel":
                     await update.message.reply_text(
-                        "❌ Payment has been canceled.",
-                        parse_mode="Markdown"
+                        f"❌ Payment has been canceled.\n"
+                        "Returning to main menu...",
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
                     )
                     del user_states[user_id]  # Clear user data after cancelation
                 else:
                     await update.message.reply_text(
                         "❌ Invalid response. Please reply with *YES* to confirm payment or *CANCEL* to abort.",
                         parse_mode="Markdown"
-                   )
+                    )
             elif state == 'editing_order':
              
                 new_order_text = update.message.text
@@ -720,9 +728,9 @@ async def handle_my_orders(update: Update, context: CallbackContext):
 async def handle_payment(update: Update, context: CallbackContext):
     
     # Determine if it's a message (command) or a callback query (button press)
-    if update.message:
+    if update.message:   # Handle /vieworders command
         user_id = update.message.from_user.id
-        message = update.message  # Handle /vieworders command
+        message = update.message 
     elif update.callback_query.message:
         user_id = update.callback_query.from_user.id 
         message = update.callback_query.message  # Handle inline button press
@@ -739,7 +747,7 @@ async def handle_payment(update: Update, context: CallbackContext):
         ]
         
         user_states[user_id] = {'state': 'awaiting_payment_amount'}
-        await message.reply_text("Please enter your payment amount")
+        await message.reply_text("Please enter your payment amount (SGD)")
         
     else:
         await message.reply_text(
@@ -824,9 +832,6 @@ async def handle_button(update: Update, context: CallbackContext):
     
     user_id = update.effective_user.id
     
-    # if query.data == 'handle_payment':
-    #     user_states[user_id]['state'] = 'awaiting_payment_amount'
-    # else:
     actions = {
         'start': start,
         'order': handle_order,

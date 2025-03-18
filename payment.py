@@ -1,9 +1,11 @@
 import os
+import re
 from dotenv import load_dotenv
 import stripe 
 from flask import Flask, request
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from database import *
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 load_dotenv()
 
@@ -43,24 +45,35 @@ async def send_payment_link(update, context, amount):
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Click below to pay:", reply_markup=reply_markup)
         
-# @app.route('/webhook', methods=['POST'])
-# def stripe_webhook():
-#     payload = request.get_data(as_text=True)
-#     sig_header = request.headers.get('Stripe-Signature')
+def validate_and_convert_amount(amount: str) -> (bool, int):
+    """
+    Validates and converts the input amount to cents.
     
-#     try:
-#         event = stripe.Webhook.construct_event(
-#             payload, sig_header, 'endpoint_secret'
-#         )
+    Args:
+    - amount: The input amount in string format (can include '$' or decimal).
+    
+    Returns:
+    - (valid: bool, cents: int): A tuple where `valid` indicates if the amount is valid
+      and `cents` is the amount in cents (if valid, otherwise -1).
+    """
+    
+    # Remove the dollar sign if it exists
+    amount = amount.replace('$', '').strip()
+    
+    # Check if the amount matches the pattern: integer or float with up to 2 decimal places
+    if re.match(r"^\d+(\.\d{1,2})?$", amount):
+        # Convert the amount to a float and then to cents
+        try:
+            # Use Decimal for precise floating-point arithmetic
+            amount_decimal = Decimal(amount)
         
-#         if event['type'] == 'checkout.session.completed':
-#             session = event['data']['object']
-#             handle_successful_payment(session)
-            
-#         return '', 200
-#     except ValueError as e:
-#         # Invalid payload
-#         return '', 400
-#     except stripe.error.SignatureVerificationError as e:
-#         # Invalid signature
-#         return '', 400
+        # Check if the value is positive and at least 1 dollar (i.e., >= 1.00)
+            if amount_decimal >= Decimal('1.00'):
+            # Convert to cents
+                amount_decimal = amount_decimal.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                amount_cents = int(amount_decimal * 100)
+                return True, amount_cents
+        except InvalidOperation:
+            pass
+    
+    return False, -1
