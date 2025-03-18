@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, Sequence, ForeignKey, Float
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, Sequence, ForeignKey, Float, BigInteger
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -21,8 +21,8 @@ class RunnerReview(Base):
     __tablename__ = 'runner_reviews'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    runner_id = Column(Integer, nullable=False)  # Telegram ID of the runner
-    user_id = Column(Integer, nullable=False)  # Telegram ID of the user who gave the review
+    runner_id = Column(BigInteger, nullable=False)  # Telegram ID of the runner
+    user_id = Column(BigInteger, nullable=False)  # Telegram ID of the user who gave the review
     order_id = Column(Integer, ForeignKey('orders.id'), nullable=False)
     rating = Column(Float, nullable=False)  # Rating from 1 to 5
     comment = Column(String, nullable=True)
@@ -35,8 +35,8 @@ class Order(Base):
     time = Column(String, nullable=True)
     details = Column(String, nullable=True)
     claimed = Column(Boolean, default=False)
-    user_id = Column(Integer, nullable=False)
-    runner_id = Column(Integer, nullable=True)
+    user_id = Column(BigInteger, nullable=False)
+    runner_id = Column(BigInteger, nullable=True)
     user_handle = Column(String, nullable=True)
     runner_handle = Column(String, nullable=True)
 
