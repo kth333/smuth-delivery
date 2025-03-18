@@ -703,7 +703,7 @@ async def handle_my_orders(update: Update, context: CallbackContext):
             )
     else:
         await user_message.reply_text(
-            "⏳ You do not have any orders right now!*\n\n"
+            f"⏳ *You do not have any orders right now!* \n\n"
             "💡 Please place an order using /order.",
             parse_mode="Markdown",
             reply_markup=get_main_menu()
