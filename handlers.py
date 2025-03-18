@@ -701,6 +701,14 @@ async def handle_my_orders(update: Update, context: CallbackContext):
                 f"🔍 *My Orders:*\n\n{chunk}\n\n ",
                 parse_mode="Markdown",
             )
+            
+        keyboard = [[InlineKeyboardButton("Back", callback_data='start')]]
+    
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        user_states[user_id] = {'state': 'selecting_order_id'}
+        
+        await message.reply_text("Please enter the Order ID", reply_markup=reply_markup)
     else:
         await user_message.reply_text(
             f"⏳ *You do not have any orders right now!* \n\n"
@@ -708,16 +716,6 @@ async def handle_my_orders(update: Update, context: CallbackContext):
             parse_mode="Markdown",
             reply_markup=get_main_menu()
         )
-    
-    keyboard = [
-        [InlineKeyboardButton("Back", callback_data='start')]
-    ]
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    user_states[user_id] = {'state': 'selecting_order_id'}
-    
-    await message.reply_text("Please enter the Order ID", reply_markup=reply_markup)
 
 async def handle_payment(update: Update, context: CallbackContext):
     user_id = update.message.from_user.id
