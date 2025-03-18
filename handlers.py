@@ -718,13 +718,14 @@ async def handle_my_orders(update: Update, context: CallbackContext):
         )
 
 async def handle_payment(update: Update, context: CallbackContext):
-    user_id = update.message.from_user.id
     
     # Determine if it's a message (command) or a callback query (button press)
     if update.message:
-        user_message = update.message  # Handle /vieworders command
-    elif update.callback_query:
-        user_message = update.callback_query.message  # Handle inline button press
+        user_id = update.message.from_user.id
+        message = update.message  # Handle /vieworders command
+    elif update.callback_query.message:
+        user_id = update.callback_query.from_user.id 
+        message = update.callback_query.message  # Handle inline button press
         await update.callback_query.answer()  # Acknowledge the callback query
     
     # Query the database to get available orders
@@ -736,17 +737,12 @@ async def handle_payment(update: Update, context: CallbackContext):
         order_list = [
             f"📌 *Order ID:* {o.id}\n🍽 *Meal:* {o.order_text}\n" for o in orders
         ]
-
-        # Break orders into multiple messages if too long (avoid Telegram message limit)
-        for i in range(0, len(order_list), 10):  # Send 10 orders per message
-            chunk = "\n".join(order_list[i:i + 10])
-            await user_message.reply_text(
-                f"🔍 *My Orders:*\n\n{chunk}\n\n ",
-                parse_mode="Markdown",
-            )
-        user_states[user_id] = {'state': 'selecting_order_id'}
+        
+        user_states[user_id] = {'state': 'awaiting_payment_amount'}
+        await message.reply_text("Please enter your payment amount")
+        
     else:
-        await user_message.reply_text(
+        await message.reply_text(
             "⏳ You do not have any orders right now!*\n\n"
             "💡 Please place an order using /order.",
             parse_mode="Markdown",
@@ -828,19 +824,19 @@ async def handle_button(update: Update, context: CallbackContext):
     
     user_id = update.effective_user.id
     
-    if query.data == 'handle_payment':
-        user_states[user_id]['state'] = 'awaiting_payment_amount'
-        await query.message.reply_text("Please enter your payment amount")
-    else:
-        actions = {
-            'start': start,
-            'order': handle_order,
-            'vieworders': view_orders,
-            'claim': handle_claim,
-            'myorders': handle_my_orders,
-            'help': help_command,
-            'edit_order': edit_order,
-            'delete_order': delete_order,
+    # if query.data == 'handle_payment':
+    #     user_states[user_id]['state'] = 'awaiting_payment_amount'
+    # else:
+    actions = {
+        'start': start,
+        'order': handle_order,
+        'vieworders': view_orders,
+        'claim': handle_claim,
+        'myorders': handle_my_orders,
+        'help': help_command,
+        'edit_order': edit_order,
+        'delete_order': delete_order,
+        'handle_payment': handle_payment,
         }
 
     if query.data in actions:
