@@ -14,8 +14,8 @@ app = Flask(__name__)
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
 
 def create_checkout_session(amount: int, currency: str, user_id): 
-    success_url = f"https://t.me/your_bot?start=payment_success_{user_id}"  # Unique for the user
-    cancel_url = f"https://t.me/your_bot?start=payment_cancel_{user_id}"
+    success_url = f"https://t.me/smuth_delivery?start=payment_success_{user_id}"  # Unique for the user
+    cancel_url = f"https://t.me/smuth_delivery?start=payment_cancel_{user_id}"
     
     checkout_session = stripe.checkout.Session.create(
         payment_method_types = ['paynow'],

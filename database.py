@@ -39,6 +39,12 @@ class Order(Base):
     runner_id = Column(BigInteger, nullable=True)
     user_handle = Column(String, nullable=True)
     runner_handle = Column(String, nullable=True)
+    # payment_amount = Column(Float, nullable=True)
+    
+class StripeAccount(Base):
+    __tablename__ = 'stripe_accounts'
+    telegram_id = Column(BigInteger, primary_key=True)
+    stripe_account_id = Column(String, nullable=False)
 
 # Create all tables in the database
 def create_tables():

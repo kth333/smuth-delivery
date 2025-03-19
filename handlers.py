@@ -5,6 +5,7 @@ from database import Order, session_local  # Importing Order model and session t
 from utils import get_main_menu  # Importing the helper function for generating the keyboard
 import messages  # Importing the messages from messages.py
 from payment import *
+from payout import *
 import os
 
 CHANNEL_ID = os.getenv("CHANNEL_ID")
@@ -50,6 +51,11 @@ async def handle_order(update: Update, context: CallbackContext):
 
 async def handle_claim(update: Update, context: CallbackContext):
     """Handles the /claim command and allows the user to claim an order."""
+    need_stripe_setup = await check_for_stripe_account(update, context)
+    
+    if need_stripe_setup:
+        return
+    
     user_id = update.effective_user.id
     message = update.message if update.message else update.callback_query.message
 
@@ -638,8 +644,36 @@ async def handle_message(update: Update, context: CallbackContext):
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
-            
+                    
                 session.close()
+            
+            elif state == 'creating_stripe_account':
+                user_message = update.message.text
+                
+                if user_message.lower() == 'yes':
+                    
+                    print('before await start_stripe')
+                    print(user_states)
+                    
+                    await start_stripe_account_creation(update, context)
+                    user_states[user_id]['state'] = 'awaiting_email'
+                    
+                    print('after await start_stripe')
+                    print(user_states)
+                elif user_message.lower() == 'no':
+                    await update.message.reply_text(
+                        "Returning to main menu",
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+                else:
+                    await update.message.reply_text(
+                        "❌ Invalid response. Please reply with *YES* to create an account or *No* to abort.",
+                        parse_mode="Markdown"
+                    )
+                    
+            elif state == 'awaiting_email':
+                await get_email(update, context)
 
     except Exception as e:
         print(f"[ERROR] Exception occurred: {e}")  # Log the actual error
@@ -824,6 +858,27 @@ async def delete_order(update: Update, context: CallbackContext):
             parse_mode="Markdown"
         )
     session.close()
+    
+async def check_for_stripe_account(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    
+    message = update.message if update.message else update.callback_query.message
+    
+    session = session_local()
+    stripe_account_id = session.query(StripeAccount).get(user_id)
+    
+    if stripe_account_id:
+        return False
+    else:
+        user_states[user_id] = {'state': 'creating_stripe_account'}
+        
+        await message.reply_text(
+            f"You do not have a Stripe Account setup yet.\n"
+            "To start claiming orders, you have to create a Stripe Account to receive payment.\n\n"
+            "Would you like to proceed? (Yes or No)")
+        
+        return True
+        
 
 async def handle_button(update: Update, context: CallbackContext):
     """Handles button presses from InlineKeyboardMarkup."""
