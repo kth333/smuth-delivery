@@ -18,27 +18,33 @@ WELCOME_TEXT = (
 
 # Order placement instructions
 ORDER_INSTRUCTIONS_MEAL = (
-    "📝 *Placing an Order* We will ask for delivery location, time and additional info next.\n\n"
+    "📝 *Placing an Order* We will ask for delivery location, time, additional info and delivery fee next.\n\n"
     "📌 *Step 1. Please enter your meal:*\n"
     "✅ Example: *Menu number 1 at King Kong Curry*"
 )
 
 ORDER_INSTRUCTIONS_LOCATION = (
     "📝 *Placing an Order*\n\n"
-    "📌 *Step 2. Please enter the location you want your food to be delivered to:*\n"
+    "📌 *Step 2. Please enter the *location* you want your food to be delivered to:*\n"
     "✅ Example: *SCIS 1 SR 3-1*"
 )
 
 ORDER_INSTRUCTIONS_TIME = (
     "📝 *Placing an Order*\n\n"
-    "📌 *Step 3. Please enter the date/time you want to receive your order:*\n"
+    "📌 *Step 3. Please enter the *date/time* you want to receive your order:*\n"
     "✅ Example: *Today, around 1.30 PM*"
 )
 
 ORDER_INSTRUCTIONS_DETAILS = (
     "📝 *Placing an Order*\n\n"
-    "📌 *Step 4. Please enter any additional info (enter \"none\" if not applicable):*\n"
+    "📌 *Step 4. Please enter any *additional info* (enter \"none\" if not applicable):*\n"
     "✅ Example: *none*"
+)
+
+ORDER_INSTRUCTIONS_FEE = (
+    "📝 *Placing an Order*\n\n"
+    "📌 *Step 5. Please enter the *delivery fee* you're offering to the runners:*\n"
+    "✅ Example: *Offering $2 for delivery!*"
 )
 
 # Claim success notification
@@ -49,7 +55,8 @@ CLAIM_SUCCESS_MESSAGE = (
     "🍽 *Meal:* {order_text}\n"
     "📍 *Location:* {order_location}\n"
     "⏳ *Date/Time:* {order_time}\n\n"
-    "ℹ️ *Details:* {order_details}\n\n"
+    "ℹ️ *Details:* {order_details}\n"
+    "💸 *Delivery Fee Offered:* {delivery_fee}\n\n" 
     "🚀 *Next Steps:*\n"
     "1️⃣ Buy the meal from the vendor.\n"
     "2️⃣ Confirm purchase via the bot.\n"
@@ -65,7 +72,8 @@ ORDER_CLAIMED_NOTIFICATION = (
     "🍽 *Meal:* {order_text}\n"
     "📍 *Location:* {order_location}\n"
     "⏳ *Date/Time:* {order_time}\n"
-    "ℹ️ *Details:* {order_details}\n\n"
+    "ℹ️ *Details:* {order_details}\n"
+    "💸 *Delivery Fee Offered:* {delivery_fee}\n\n" 
     "🚴 Claimed by: {claimed_by}\n\n"
     "📍 *Stay tuned for updates on delivery!*"
 )
@@ -94,7 +102,8 @@ ORDER_PLACED = (
     "🍽 *Meal:* {order_text}\n"
     "📍 *Location:* {order_location}\n"
     "⏳ *Date/Time:* {order_time}\n"
-    "ℹ️ *Details:* {order_details}\n\n"
+    "ℹ️ *Details:* {order_details}\n"
+    "💸 *Delivery Fee Offered:* {delivery_fee}\n\n" 
     "⚡ Your order has been listed! A food runner will claim it soon."
 )
 
@@ -104,7 +113,8 @@ NEW_ORDER = (
     "🍽 *Meal:* {order_text}\n"
     "📍 *Location:* {order_location}\n"
     "⏳ *Date/Time:* {order_time}\n"
-    "ℹ️ *Details:* {order_details}"
+    "ℹ️ *Details:* {order_details}\n"
+    "💸 *Delivery Fee Offered:* {delivery_fee}\n\n" 
 )
 
 NEW_CLAIM = (
@@ -112,7 +122,8 @@ NEW_CLAIM = (
     "🍽 *Meal:* {order_text}\n"
     "📍 *Location:* {order_location}\n"
     "⏳ *Date/Time:* {order_time}\n"
-    "ℹ️ *Details:* {order_details}"
+    "ℹ️ *Details:* {order_details}\n"
+    "💸 *Delivery Fee Offered:* {delivery_fee}\n\n" 
 )
 
 EDITED_ORDER = (
@@ -120,7 +131,8 @@ EDITED_ORDER = (
     "🍽 *Meal:* {order_text}\n"
     "📍 *Location:* {order_location}\n"
     "⏳ *Date/Time:* {order_time}"
-    "ℹ️ *Details:* {order_details}\n\n"
+    "ℹ️ *Details:* {order_details}\n"
+    "💸 *Delivery Fee Offered:* {delivery_fee}\n\n" 
 )
 
 # No available orders message
