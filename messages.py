@@ -70,6 +70,17 @@ ORDER_CLAIMED_NOTIFICATION = (
     "📍 *Stay tuned for updates on delivery!*"
 )
 
+# Order completion confirmation notification for the runner
+ORDER_COMPLETION_CONFIRMATION = (
+    "{user_id} has indicated the completion of the order\n\n"
+    "Please click the *'COMPLETE ORDER'* button to confirm!"
+)
+
+# Order completion notification for the runner and orderer
+ORDER_COMPLETION_NOTIFICATION = (
+    "*Order {order_id}* has been completed!"
+)
+
 # Order ID request prompt
 ORDER_ID_REQUEST = "🔍 Please enter the *Order ID* you want to claim:"
 

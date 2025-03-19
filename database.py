@@ -39,6 +39,7 @@ class Order(Base):
     runner_id = Column(BigInteger, nullable=True)
     user_handle = Column(String, nullable=True)
     runner_handle = Column(String, nullable=True)
+    completed = Column(Boolean, nullable=False, default=False)
     # payment_amount = Column(Float, nullable=True)
     
 class StripeAccount(Base):

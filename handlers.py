@@ -329,7 +329,6 @@ async def handle_message(update: Update, context: CallbackContext):
                 session.commit()
 
                 # Clear state after order placement
-                del user_states[user_id]
                 del user_orders[user_id]  # Clear order from temporary storage
 
                 # Confirm order placement
@@ -520,15 +519,16 @@ async def handle_message(update: Update, context: CallbackContext):
                 order = session.query(Order).filter_by(id=user_message, user_id=user_id).first()
                 session.close()
             
-                keyboard = [
-                    [InlineKeyboardButton("Complete Order", callback_data='delete_order')], # Not finished yet
+                myorders_keyboard = [
+                    [InlineKeyboardButton("Complete Order", callback_data='complete_order')],
                     [InlineKeyboardButton("Make Payment", callback_data='handle_payment')],
                     [InlineKeyboardButton("Edit Order", callback_data='edit_order')],
                     [InlineKeyboardButton("Delete Order", callback_data='delete_order')],
                     [InlineKeyboardButton("Back", callback_data='start')]
                 ]
+                
+                reply_markup = InlineKeyboardMarkup(myorders_keyboard)
             
-                reply_markup = InlineKeyboardMarkup(keyboard)
                 if order: 
                     await update.message.reply_text(
                         f"✅ *Order Selected:* {order.order_text}\n\n"
@@ -652,14 +652,9 @@ async def handle_message(update: Update, context: CallbackContext):
                 
                 if user_message.lower() == 'yes':
                     
-                    print('before await start_stripe')
-                    print(user_states)
-                    
                     await start_stripe_account_creation(update, context)
                     user_states[user_id]['state'] = 'awaiting_email'
                     
-                    print('after await start_stripe')
-                    print(user_states)
                 elif user_message.lower() == 'no':
                     await update.message.reply_text(
                         "Returning to main menu",
@@ -674,6 +669,31 @@ async def handle_message(update: Update, context: CallbackContext):
                     
             elif state == 'awaiting_email':
                 await get_email(update, context)
+                
+            elif state == 'confirming_complete_order':
+                user_message = update.message.text
+                
+                if user_message.lower() == 'yes':
+                    await update.message.reply_text(
+                        f"Order Completion Confirmed!\n"
+                        "The runner will be notified immediately!",
+                        parse_mode="Markdown"
+                    )
+                    
+                    await send_runner_confirmation(update, context, user_states.get(user_id)['selected_order'])
+                    
+                elif user_message.lower() == 'no':
+                    await update.message.reply_text(
+                        "Returning to main menu",
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+                else:
+                    await update.message.reply_text(
+                        "❌ Invalid response. Please reply with *YES* to create an account or *No* to abort.",
+                        parse_mode="Markdown"
+                    )
+                    
 
     except Exception as e:
         print(f"[ERROR] Exception occurred: {e}")  # Log the actual error
@@ -712,11 +732,9 @@ async def help_command(update: Update, context: CallbackContext):
 async def handle_my_orders(update: Update, context: CallbackContext):
     # Check if the update is from a callback query or a message
     if update.callback_query and update.callback_query.from_user:
-        # Callback query update (button pressed)
-        user_id = update.callback_query.from_user.id
+        user_id = update.callback_query.from_user.id  # Callback query update (button pressed)
     elif update.message and update.message.from_user:
-        # Message update (user sends a message)
-        user_id = update.message.from_user.id
+        user_id = update.message.from_user.id # Message update (user sends a message)
     
     message = update.message or update.callback_query.message
     
@@ -728,22 +746,36 @@ async def handle_my_orders(update: Update, context: CallbackContext):
         await update.callback_query.answer()  # Acknowledge the callback query
     
     session = session_local()
-    orders = session.query(Order).filter_by(user_id=user_id).all()
+    my_orders = session.query(Order).filter_by(user_id=user_id).all()
+    claimed_orders = session.query(Order).filter_by(runner_id=user_id).all()
     session.close()
     
-    if orders:
-        order_list = [
-            f"📌 *Order ID:* {o.id}\n🍽 *Meal:* {o.order_text}\n" for o in orders
-        ]
+    if my_orders or claimed_orders:
+        if my_orders:
+            order_list = [
+                f"📌 *Order ID:* {o.id}\n🍽 *Meal:* {o.order_text}\n" for o in my_orders
+            ]
 
-        # Break orders into multiple messages if too long (avoid Telegram message limit)
-        for i in range(0, len(order_list), 10):  # Send 10 orders per message
-            chunk = "\n".join(order_list[i:i + 10])
-            await user_message.reply_text(
-                f"🔍 *My Orders:*\n\n{chunk}\n\n ",
-                parse_mode="Markdown",
-            )
-            
+            # Break orders into multiple messages if too long (avoid Telegram message limit)
+            for i in range(0, len(order_list), 10):  # Send 10 orders per message
+                chunk = "\n".join(order_list[i:i + 10])
+                await user_message.reply_text(
+                    f"🔍 *My Orders:*\n\n{chunk}\n\n ",
+                    parse_mode="Markdown",
+                )
+        if claimed_orders: # WIP
+            order_list = [
+                f"📌 *Order ID:* {o.id}\n🍽 *Meal:* {o.order_text}\n" for o in claimed_orders
+            ]
+
+            # Break orders into multiple messages if too long (avoid Telegram message limit)
+            for i in range(0, len(order_list), 10):  # Send 10 orders per message
+                chunk = "\n".join(order_list[i:i + 10])
+                await user_message.reply_text(
+                    f"🔍 *Claimed Orders (WIP) :*\n\n{chunk}\n\n ",
+                    parse_mode="Markdown",
+                )
+                
         keyboard = [[InlineKeyboardButton("Back", callback_data='start')]]
     
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -751,6 +783,7 @@ async def handle_my_orders(update: Update, context: CallbackContext):
         user_states[user_id] = {'state': 'selecting_order_id'}
         
         await message.reply_text("Please enter the Order ID", reply_markup=reply_markup)
+            
     else:
         await user_message.reply_text(
             f"⏳ *You do not have any orders right now!* \n\n"
@@ -859,6 +892,97 @@ async def delete_order(update: Update, context: CallbackContext):
         )
     session.close()
     
+async def complete_order(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    
+    if update.message:
+        message = update.message
+    elif update.callback_query:
+        message = update.callback_query.message
+        
+    user_states[user_id]['state'] = 'confirming_complete_order'
+    
+    await message.reply_text(
+        f"You are about to complete the Order\n"
+        "Are you sure (Yes or No)"
+    )
+    
+async def send_runner_confirmation(update: Update, context: CallbackContext, order_id):
+    session = session_local()
+    order = session.query(Order).filter_by(id=order_id).first()
+    session.close()
+    
+    runner_id = order.runner_id
+    user_id = order.user_id
+    
+    user_states[runner_id]['selected_order'] = order_id
+    
+    keyboard = [[InlineKeyboardButton("Complete Order", callback_data=f'handle_completed_order')]]
+    
+    # Notify the orderer
+    if runner_id:
+        try:
+            await context.bot.send_message(
+                chat_id=runner_id,
+                text=messages.ORDER_COMPLETION_CONFIRMATION.format(
+                    user_id=user_id
+                ),
+                parse_mode="Markdown",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+            )
+        except Exception as e:
+            print(f"Failed to notify orderer @{runner_id}: {e}")
+    
+async def handle_completed_order(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    
+    order_id = user_states.get(user_id)['selected_order']
+    
+    session = session_local()
+    order = session.query(Order).filter_by(id=order_id, runner_id=user_id).first()
+    
+    orderer_id = order.user_id
+    runner_id = order.runner_id
+    
+    order.completed = True
+    session.commit()
+    session.close()
+    
+    # Notify the orderer
+    if orderer_id: 
+        try:
+            await context.bot.send_message(
+                chat_id=orderer_id,
+                text=messages.ORDER_COMPLETION_NOTIFICATION.format(
+                    order_id=order_id
+                ),
+                parse_mode="Markdown",
+                reply_markup=get_main_menu(),
+            )
+        except Exception as e:
+            print(f"Failed to notify orderer @{orderer_id}: {e}")
+            
+    if runner_id:
+        try:
+            await context.bot.send_message(
+                chat_id=runner_id,
+                text=messages.ORDER_COMPLETION_NOTIFICATION.format(
+                    order_id=order_id
+                ),
+                parse_mode="Markdown",
+                reply_markup=get_main_menu(),
+            )
+        except Exception as e:
+            print(f"Failed to notify runner @{runner_id}: {e}")
+            
+    if orderer_id in user_states:
+        del user_states[runner_id]
+    if orderer_id in user_states:
+        del user_states[orderer_id]
+   
+            
+    print("ORDER COMPLETED")
+    
 async def check_for_stripe_account(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     
@@ -897,6 +1021,8 @@ async def handle_button(update: Update, context: CallbackContext):
         'edit_order': edit_order,
         'delete_order': delete_order,
         'handle_payment': handle_payment,
+        'complete_order': complete_order,
+        'handle_completed_order': handle_completed_order,
         }
 
     if query.data in actions:
