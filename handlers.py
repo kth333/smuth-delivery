@@ -320,10 +320,10 @@ async def handle_message(update: Update, context: CallbackContext):
                 )
 
             elif state == 'awaiting_order_delivery_fee':
-                # User is typing details
+                # User is typing fee
                 fee_text = update.message.text.strip()
                 
-                # Validate details input
+                # Validate fee input
                 if not fee_text:
                     await update.message.reply_text(
                         messages.INVALID_ORDER_TEXT,  # Message for empty orders
@@ -332,7 +332,7 @@ async def handle_message(update: Update, context: CallbackContext):
                     )
                     return
 
-                # Validate details length
+                # Validate fee length
                 if len(fee_text) > MAX_ORDER_LENGTH:
                     await update.message.reply_text(
                         messages.ORDER_DETAILS_TOO_LONG.format(max_length=MAX_ORDER_LENGTH, order_length=len(fee_text)),
@@ -341,47 +341,25 @@ async def handle_message(update: Update, context: CallbackContext):
                     )
                     return
 
-                # Store details in temporary state
+                # Store fee in temporary state
                 user_orders[user_id]['delivery_fee'] = fee_text
+                user_states[user_id]['state'] = 'awaiting_order_confirmation'
 
-                # Save the order to the database
-                new_order = Order(
-                    order_text=user_orders[user_id]['meal'], 
-                    location=user_orders[user_id]['location'],
-                    time=user_orders[user_id]['time'],
-                    details=user_orders[user_id]['details'],
-                    delivery_fee=user_orders[user_id]['delivery_fee'],
-                    user_id=user_id, 
-                    user_handle=update.message.from_user.username
-                )
-                session.add(new_order)
-                session.commit()
-
-                # Clear state after order placement
-                del user_states[user_id]
-                del user_orders[user_id]  # Clear order from temporary storage
-
-                # Confirm order placement
-                await update.message.reply_text(
-                    messages.ORDER_PLACED.format(order_id=new_order.id, order_text=new_order.order_text, order_location=new_order.location, order_time=new_order.time, order_details=new_order.details, delivery_fee=new_order.delivery_fee),
-                    parse_mode="Markdown",
-                    reply_markup=get_main_menu()
+                order_summary = messages.ORDER_SUMMARY.format(
+                    order_text=user_orders[user_id]['meal'],
+                    order_location=user_orders[user_id]['location'],
+                    order_time=user_orders[user_id]['time'],
+                    order_details=user_orders[user_id]['details'],
+                    delivery_fee=user_orders[user_id]['delivery_fee']
                 )
 
-                # Notify food runners in the channel
-                bot_username = context.bot.username
                 keyboard = [
-                    [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{new_order.id}")],
-                    [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+                    [InlineKeyboardButton("✅ Confirm Order", callback_data=f"confirm_order_{user_id}")],
+                    [InlineKeyboardButton("❌ Cancel Order", callback_data=f"cancel_order_{user_id}")]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
 
-                await context.bot.send_message(
-                    chat_id=CHANNEL_ID,
-                    text=messages.NEW_ORDER.format(order_id=new_order.id, order_text=new_order.order_text, order_location=new_order.location, order_time=new_order.time, order_details=new_order.details, delivery_fee=new_order.delivery_fee),
-                    parse_mode="Markdown",
-                    reply_markup=reply_markup
-                )
+                await update.message.reply_text(order_summary, parse_mode="Markdown", reply_markup=reply_markup)
 
             elif state == 'awaiting_confirmation':
                 try:
@@ -863,12 +841,80 @@ async def handle_button(update: Update, context: CallbackContext):
     """Handles button presses from InlineKeyboardMarkup."""
     query = update.callback_query
     await query.answer()
-    
+
     user_id = update.effective_user.id
-    
-    if query.data == 'handle_payment':
+    callback_data = query.data  # Store callback data
+
+    if callback_data.startswith("confirm_order_"):
+        # Proceed with saving the order
+        new_order = Order(
+            order_text=user_orders[user_id]['meal'], 
+            location=user_orders[user_id]['location'],
+            time=user_orders[user_id]['time'],
+            details=user_orders[user_id]['details'],
+            delivery_fee=user_orders[user_id]['delivery_fee'],
+            user_id=user_id, 
+            user_handle=query.from_user.username
+        )
+        session = session_local()
+        session.add(new_order)
+        session.commit()
+
+        # Clear user state
+        del user_states[user_id]
+        del user_orders[user_id]
+
+        # Confirm order placement
+        await query.message.edit_text(
+            messages.ORDER_PLACED.format(
+                order_id=new_order.id,
+                order_text=new_order.order_text,
+                order_location=new_order.location,
+                order_time=new_order.time,
+                order_details=new_order.details,
+                delivery_fee=new_order.delivery_fee
+            ),
+            parse_mode="Markdown",
+            reply_markup=get_main_menu()
+        )
+
+        # Notify food runners
+        bot_username = context.bot.username
+        keyboard = [
+            [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{new_order.id}")],
+            [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await context.bot.send_message(
+            chat_id=CHANNEL_ID,
+            text=messages.NEW_ORDER.format(
+                order_id=new_order.id,
+                order_text=new_order.order_text,
+                order_location=new_order.location,
+                order_time=new_order.time,
+                order_details=new_order.details,
+                delivery_fee=new_order.delivery_fee
+            ),
+            parse_mode="Markdown",
+            reply_markup=reply_markup
+        )
+
+    elif callback_data.startswith("cancel_order_"):
+        # Cancel order process
+        del user_states[user_id]
+        del user_orders[user_id]
+
+        await query.message.edit_text(
+            "❌ Your order has been canceled. If you'd like to place a new order, use the menu below.",
+            parse_mode="Markdown",
+            reply_markup=get_main_menu()
+        )
+
+    elif query.data == 'handle_payment':
         user_states[user_id]['state'] = 'awaiting_payment_amount'
         await query.message.reply_text("Please enter your payment amount")
+
     else:
         actions = {
             'start': start,
@@ -881,5 +927,5 @@ async def handle_button(update: Update, context: CallbackContext):
             'delete_order': delete_order,
         }
 
-    if query.data in actions:
-        await actions[query.data](update, context)
+        if query.data in actions:
+            await actions[query.data](update, context)  # Execute corresponding function

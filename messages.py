@@ -91,6 +91,16 @@ ORDER_DETAILS_TOO_LONG = (
     "📝 *Your message length:* {order_length} characters."
 )
 
+ORDER_SUMMARY = """*Order Summary*:
+🍽 *Meal:* {order_text}
+📍 *Location:* {order_location}
+⏳ *Time:* {order_time}
+ℹ️ *Details:* {order_details}
+💸 *Delivery Fee:* {delivery_fee}
+
+Would you like to confirm this order?
+"""
+
 # Order placement confirmation
 ORDER_PLACED = (
     "✅ *Order Placed Successfully!*\n\n"
