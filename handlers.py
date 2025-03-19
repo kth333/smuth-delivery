@@ -477,9 +477,6 @@ async def handle_message(update: Update, context: CallbackContext):
                 session.close()
             
                 keyboard = [
-                    [InlineKeyboardButton("Complete Order", callback_data='delete_order')], # Not finished yet
-                    [InlineKeyboardButton("Make Payment", callback_data='handle_payment')],
-                    [InlineKeyboardButton("Edit Order", callback_data='edit_order')],
                     [InlineKeyboardButton("Delete Order", callback_data='delete_order')],
                     [InlineKeyboardButton("Back", callback_data='start')]
                 ]
