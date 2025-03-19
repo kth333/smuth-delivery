@@ -439,7 +439,7 @@ async def handle_message(update: Update, context: CallbackContext):
                                     order_location=order.location,
                                     order_time=order.time,
                                     order_details=order.details,
-                                    delivery_fee=order.delivery_fee
+                                    delivery_fee=order.delivery_fee,
                                     claimed_by=claimed_by
                                 ),
                                 parse_mode="Markdown"
@@ -515,7 +515,7 @@ async def handle_message(update: Update, context: CallbackContext):
                                     order_location=order.location,
                                     order_time=order.time,
                                     order_details=order.details,
-                                    delivery_fee=order.delivery_fee
+                                    delivery_fee=order.delivery_fee,
                                     claimed_by=claimed_by
                                 ),
                                 parse_mode="Markdown"
