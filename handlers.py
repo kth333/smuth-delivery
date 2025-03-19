@@ -690,7 +690,7 @@ async def help_command(update: Update, context: CallbackContext):
         "4️⃣ *Communicate via Telegram Chat:* Once you've claimed an order, communicate with the orderer via Telegram chat to finalize details.\n\n"
         
         "🔹 This bot is still in very early development. Features are not perfect.\n"
-        f"🔹 If you have any issues or need help, contact {admin_handle} for help.\n\n"
+        f"🔹 If you have any issues or need help, leave your comments here: https://forms.gle/f6FAuLeXSbw1vSSM7.\n\n"
         
         "📢 *Stay Updated:* Subscribe to our channel for real\-time updates on new orders: [Smuth Delivery]\(https://t.me/smuth\_delivery\)"
     )
