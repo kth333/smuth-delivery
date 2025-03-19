@@ -21,15 +21,26 @@ async def start(update: Update, context: CallbackContext):
 
     message = update.message if update.message else update.callback_query.message
 
+    keyboard = [
+        [InlineKeyboardButton("Back", callback_data='start')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
     if args and args[0].startswith("claim_"):
         order_id = args[0].split("_")[1]  # Extract order ID from "claim_<order_id>"
+        
+        # Fetch order from the database
+        session = session_local()
+        order = session.query(Order).filter_by(id=order_id, claimed=False).first()
+        session.close()
         
         # Store the order ID in user state and set to awaiting confirmation
         user_states[user_id] = {'state': 'awaiting_confirmation', 'order_id': int(order_id)}
 
         await message.reply_text(
-            messages.CLAIM_CONFIRMATION.format(order_id=order_id),  # Apply .format()
-            parse_mode="Markdown"
+            messages.CLAIM_CONFIRMATION.format(order_id=order_id, order_text=order.order_text, order_location=order.location, order_time=order.time, order_details=order.details, delivery_fee=order.delivery_fee),  # Apply .format()
+            parse_mode="Markdown",
+            reply_markup=reply_markup
         )
 
     else:

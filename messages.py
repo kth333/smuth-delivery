@@ -157,6 +157,12 @@ CLAIM_INVALID = "❌ *Invalid order claim request.* Please check the order ID an
 GENERAL_ERROR = "⚠️ Something went wrong. Please try again later."
 
 CLAIM_CONFIRMATION = (
-    "✅ You are about to claim *Order {order_id}*.\n\n"
-    "Please confirm by sending the order ID again."
+    "✅ You are about to claim *Order ID: {order_id}*.\n\n"
+    "🍽 *Meal:* {order_text}\n"
+    "📍 *Location:* {order_location}\n"
+    "⏳ *Date/Time:* {order_time}\n"
+    "ℹ️ *Details:* {order_details}\n"
+    "💸 *Delivery Fee Offered:* {delivery_fee}\n\n" 
+    "Please confirm by sending the *Order ID* again.\n\n"
+    "To cancel, press the *Back* button below."
 )
