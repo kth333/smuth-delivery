@@ -688,9 +688,11 @@ async def help_command(update: Update, context: CallbackContext):
         "2️⃣ *Claim an Order \(Food Runner\):* If you're a food runner, check available orders and use the bot to claim one to pick up from a vendor.\n"
         "3️⃣ *Delivering Food:* After claiming an order, pick up the food from the vendor and deliver it to the user’s specified location.\n"
         "4️⃣ *Communicate via Telegram Chat:* Once you've claimed an order, communicate with the orderer via Telegram chat to finalize details.\n\n"
-        
+        "*Please ensure your Telegram chat is open to new contacts so that orderers/runners can communicate with you\!\n\n*"
+
         "🔹 This bot is still in very early development. Features are not perfect.\n"
-        f"🔹 If you have any issues or need help, leave your comments here: https://forms.gle/f6FAuLeXSbw1vSSM7.\n\n"
+        f"🔹 If you have any issues or need help, leave your comments here \(along with your Telegram handle if you want us to get back to you\)\:\n"
+        "https://forms.gle/f6FAuLeXSbw1vSSM7\n\n"
         
         "📢 *Stay Updated:* Subscribe to our channel for real\-time updates on new orders: [Smuth Delivery]\(https://t.me/smuth\_delivery\)"
     )
