@@ -6,6 +6,8 @@ from utils import get_main_menu  # Importing the helper function for generating 
 import messages  # Importing the messages from messages.py
 from payment import *
 import os
+from datetime import datetime
+import pytz
 
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 MAX_ORDER_LENGTH = 100
@@ -103,6 +105,7 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
             order.runner_id = user_id
             user_handle = update.message.from_user.username
             order.runner_handle = user_handle
+            order.order_claimed_time = datetime.now(SGT)
             session.commit()
             
             claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
@@ -435,6 +438,7 @@ async def handle_message(update: Update, context: CallbackContext):
                     order.runner_id = user_id
                     user_handle = update.message.from_user.username
                     order.runner_handle = user_handle
+                    order.order_claimed_time = datetime.now(SGT)
                     session.commit()
 
                     claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
@@ -526,6 +530,7 @@ async def handle_message(update: Update, context: CallbackContext):
                     order.runner_id = user_id
                     user_handle = update.message.from_user.username
                     order.runner_handle = user_handle
+                    order.order_claimed_time = datetime.now(SGT)
                     session.commit()
 
                     claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
@@ -930,7 +935,8 @@ async def handle_button(update: Update, context: CallbackContext):
             details=user_orders[user_id]['details'],
             delivery_fee=user_orders[user_id]['delivery_fee'],
             user_id=user_id, 
-            user_handle=query.from_user.username
+            user_handle=query.from_user.username,
+            order_placed_time=datetime.now(SGT)
         )
         session = session_local()
         session.add(new_order)
