@@ -124,7 +124,7 @@ NEW_ORDER = (
 )
 
 NEW_CLAIM = (
-    "📢 Order {order_id} has been claimed!\n"
+    "✅ Order {order_id} has been claimed!\n\n"
     "🍽 *Meal:* {order_text}\n"
     "📍 *Location:* {order_location}\n"
     "⏳ *Date/Time:* {order_time}\n"

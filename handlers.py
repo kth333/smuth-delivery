@@ -38,8 +38,15 @@ async def start(update: Update, context: CallbackContext):
         user_states[user_id] = {'state': 'awaiting_confirmation', 'order_id': int(order_id)}
 
         await message.reply_text(
-            messages.CLAIM_CONFIRMATION.format(order_id=order_id, order_text=order.order_text, order_location=order.location, order_time=order.time, order_details=order.details, delivery_fee=order.delivery_fee),  # Apply .format()
-            parse_mode="Markdown",
+            messages.CLAIM_CONFIRMATION.format(        
+                order_id=escape_markdown(str(order_id), version=2),
+                order_text=escape_markdown(order.order_text, version=2),
+                order_location=escape_markdown(order.location, version=2),
+                order_time=escape_markdown(order.time, version=2),
+                order_details=escape_markdown(order.details, version=2),
+                delivery_fee=escape_markdown(order.delivery_fee, version=2)
+            ),
+            parse_mode="MarkdownV2",
             reply_markup=reply_markup
         )
 
@@ -103,8 +110,16 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
             
             # Notify the claimer
             await update.message.reply_text(
-                messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, order_location=order.location, order_time=order.time, order_details=order.details, delivery_fee=order.delivery_fee, orderer_handle=order.user_handle),
-                parse_mode="Markdown",
+                messages.CLAIM_SUCCESS_MESSAGE.format(
+                    order_id=escape_markdown(str(order_id), version=2),
+                    order_text=escape_markdown(order.order_text, version=2),
+                    order_location=escape_markdown(order.location, version=2),
+                    order_time=escape_markdown(order.time, version=2),
+                    order_details=escape_markdown(order.details, version=2),
+                    delivery_fee=escape_markdown(order.delivery_fee, version=2),
+                    orderer_handle=escape_markdown(order.user_handle, version=2) if order.user_handle else "Unknown"
+                ),
+                parse_mode="MarkdownV2",
                 reply_markup=get_main_menu()
             )
             
@@ -116,15 +131,15 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
                     await context.bot.send_message(
                         chat_id=orderer_id,
                         text=messages.ORDER_CLAIMED_NOTIFICATION.format(
-                            order_id=order_id,
-                            order_text=order.order_text,
-                            order_location=order.location,
-                            order_time=order.time,
-                            order_details=order.details,
-                            delivery_fee=order.delivery_fee,
-                            claimed_by=claimed_by
+                            order_id=escape_markdown(str(order_id), version=2),
+                            order_text=escape_markdown(order.order_text, version=2),
+                            order_location=escape_markdown(order.location, version=2),
+                            order_time=escape_markdown(order.time, version=2),
+                            order_details=escape_markdown(order.details, version=2),
+                            delivery_fee=escape_markdown(order.delivery_fee, version=2),
+                            claimed_by=escape_markdown(claimed_by, version=2),
                         ),
-                        parse_mode="Markdown"
+                        parse_mode="MarkdownV2"
                     )
                 except Exception as e:
                     print(f"Failed to notify orderer @{orderer_id}: {e}")
@@ -138,10 +153,18 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
 
             await context.bot.send_message(
                 chat_id=CHANNEL_ID,
-                text=messages.NEW_CLAIM.format(order_id=order_id, order_location=order.location, order_time=order.time, order_text=order.order_text, order_details=order.details, delivery_fee=order.delivery_fee),
-                parse_mode="Markdown",
+                text=messages.NEW_CLAIM.format(
+                    order_id=escape_markdown(str(order_id), version=2),
+                    order_text=escape_markdown(order.order_text, version=2),
+                    order_location=escape_markdown(order.location, version=2),
+                    order_time=escape_markdown(order.time, version=2),
+                    order_details=escape_markdown(order.details, version=2),
+                    delivery_fee=escape_markdown(order.delivery_fee, version=2)
+                ),
+                parse_mode="MarkdownV2",
                 reply_markup=reply_markup
             )
+
         else:
             await message.reply_text(messages.CLAIM_FAILED.format(order_id=order_id), reply_markup=get_main_menu())
         session.close()
@@ -157,12 +180,21 @@ async def view_orders(update: Update, context: CallbackContext):
     session.close()
 
     if orders:
-        order_list = [f"📌 *Order ID:* {o.id}\n🍽 *Meal:* {o.order_text}\n" for o in orders]
+        order_list = [
+            f"📌 *Order ID:* {escape_markdown(str(o.id), version=2)}\n"
+            f"🍽 *Meal:* {escape_markdown(o.order_text, version=2)}\n"
+            f"📍 *Location:* {escape_markdown(o.location, version=2)}\n"
+            f"⏳ *Time:* {escape_markdown(o.time, version=2)}\n"
+            f"ℹ️ *Details:* {escape_markdown(o.details, version=2)}\n"
+            f"💸 *Delivery Fee:* {escape_markdown(o.delivery_fee, version=2)}\n"
+            for o in orders
+        ]
+
         for i in range(0, len(order_list), 10):  # Send 10 orders per message
             chunk = "\n".join(order_list[i:i + 10])
             await message.reply_text(
                 f"🔍 *Available Orders:*\n\n{chunk}",
-                parse_mode="Markdown",
+                parse_mode="MarkdownV2",
                 reply_markup=get_main_menu()
             )
     else:
@@ -357,11 +389,11 @@ async def handle_message(update: Update, context: CallbackContext):
                 user_states[user_id]['state'] = 'awaiting_order_confirmation'
 
                 order_summary = messages.ORDER_SUMMARY.format(
-                    order_text=user_orders[user_id]['meal'],
-                    order_location=user_orders[user_id]['location'],
-                    order_time=user_orders[user_id]['time'],
-                    order_details=user_orders[user_id]['details'],
-                    delivery_fee=user_orders[user_id]['delivery_fee']
+                    order_text=escape_markdown(user_orders[user_id]['meal'], version=2),
+                    order_location=escape_markdown(user_orders[user_id]['location'], version=2),
+                    order_time=escape_markdown(user_orders[user_id]['time'], version=2),
+                    order_details=escape_markdown(user_orders[user_id]['details'], version=2),
+                    delivery_fee=escape_markdown(user_orders[user_id]['delivery_fee'], version=2)
                 )
 
                 keyboard = [
@@ -370,7 +402,7 @@ async def handle_message(update: Update, context: CallbackContext):
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
 
-                await update.message.reply_text(order_summary, parse_mode="Markdown", reply_markup=reply_markup)
+                await update.message.reply_text(order_summary, parse_mode="MarkdownV2", reply_markup=reply_markup)
 
             elif state == 'awaiting_confirmation':
                 try:
@@ -412,8 +444,16 @@ async def handle_message(update: Update, context: CallbackContext):
 
                     # Notify the claimer
                     await update.message.reply_text(
-                        messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, order_location=order.location, order_time=order.time, order_details=order.details, delivery_fee=order.delivery_fee, orderer_handle=order.user_handle),
-                        parse_mode="Markdown",
+                        messages.CLAIM_SUCCESS_MESSAGE.format(
+                            order_id=escape_markdown(str(order_id), version=2),
+                            order_text=escape_markdown(order.order_text, version=2),
+                            order_location=escape_markdown(order.location, version=2),
+                            order_time=escape_markdown(order.time, version=2),
+                            order_details=escape_markdown(order.details, version=2),
+                            delivery_fee=escape_markdown(order.delivery_fee, version=2),
+                            orderer_handle=escape_markdown(order.user_handle, version=2) if order.user_handle else "Unknown"
+                        ),
+                        parse_mode="MarkdownV2",
                         reply_markup=get_main_menu()
                     )
 
@@ -423,15 +463,15 @@ async def handle_message(update: Update, context: CallbackContext):
                             await context.bot.send_message(
                                 chat_id=orderer_id,
                                 text=messages.ORDER_CLAIMED_NOTIFICATION.format(
-                                    order_id=order_id,
-                                    order_text=order.order_text,
-                                    order_location=order.location,
-                                    order_time=order.time,
-                                    order_details=order.details,
-                                    delivery_fee=order.delivery_fee,
-                                    claimed_by=claimed_by
+                                    order_id=escape_markdown(str(order_id), version=2),  # ✅ Escape input correctly
+                                    order_text=escape_markdown(order.order_text, version=2),
+                                    order_location=escape_markdown(order.location, version=2),
+                                    order_time=escape_markdown(order.time, version=2),
+                                    order_details=escape_markdown(order.details, version=2),
+                                    delivery_fee=escape_markdown(order.delivery_fee, version=2),
+                                    claimed_by=escape_markdown(claimed_by, version=2),
                                 ),
-                                parse_mode="Markdown"
+                                parse_mode="MarkdownV2"
                             )
                         except Exception as e:
                             print(f"Failed to notify orderer @{orderer_id}: {e}")
@@ -445,8 +485,15 @@ async def handle_message(update: Update, context: CallbackContext):
 
                     await context.bot.send_message(
                         chat_id=CHANNEL_ID,
-                        text=messages.NEW_CLAIM.format(order_id=order_id, order_location=order.location, order_time=order.time, order_text=order.order_text, order_details=order.details, delivery_fee=order.delivery_fee),
-                        parse_mode="Markdown",
+                        text=messages.NEW_CLAIM.format(
+                            order_id=escape_markdown(str(order_id), version=2),
+                            order_text=escape_markdown(order.order_text, version=2),
+                            order_location=escape_markdown(order.location, version=2),
+                            order_time=escape_markdown(order.time, version=2),
+                            order_details=escape_markdown(order.details, version=2),
+                            delivery_fee=escape_markdown(order.delivery_fee, version=2)
+                        ),
+                        parse_mode="MarkdownV2",
                         reply_markup=reply_markup
                     )
 
@@ -485,11 +532,19 @@ async def handle_message(update: Update, context: CallbackContext):
                     orderer_id = order.user_id
 
                     del user_states[user_id]  # Clear state
-
+                    
                     # Notify the claimer
                     await update.message.reply_text(
-                        messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, order_location=order.location, order_time=order.time, order_details=order.details, delivery_fee=order.delivery_fee, orderer_handle=order.user_handle),
-                        parse_mode="Markdown",
+                        messages.CLAIM_SUCCESS_MESSAGE.format(
+                            order_id=escape_markdown(str(order_id), version=2),
+                            order_text=escape_markdown(order.order_text, version=2),
+                            order_location=escape_markdown(order.location, version=2),
+                            order_time=escape_markdown(order.time, version=2),
+                            order_details=escape_markdown(order.details, version=2),
+                            delivery_fee=escape_markdown(order.delivery_fee, version=2),
+                            orderer_handle=escape_markdown(order.user_handle, version=2) if order.user_handle else "Unknown"
+                        ),
+                        parse_mode="MarkdownV2",
                         reply_markup=get_main_menu()
                     )
 
@@ -499,15 +554,15 @@ async def handle_message(update: Update, context: CallbackContext):
                             await context.bot.send_message(
                                 chat_id=orderer_id,
                                 text=messages.ORDER_CLAIMED_NOTIFICATION.format(
-                                    order_id=order_id,
-                                    order_text=order.order_text,
-                                    order_location=order.location,
-                                    order_time=order.time,
-                                    order_details=order.details,
-                                    delivery_fee=order.delivery_fee,
-                                    claimed_by=claimed_by
+                                    order_id=escape_markdown(str(order_id), version=2),  # ✅ Escape input correctly
+                                    order_text=escape_markdown(order.order_text, version=2),
+                                    order_location=escape_markdown(order.location, version=2),
+                                    order_time=escape_markdown(order.time, version=2),
+                                    order_details=escape_markdown(order.details, version=2),
+                                    delivery_fee=escape_markdown(order.delivery_fee, version=2),
+                                    claimed_by=escape_markdown(claimed_by, version=2),
                                 ),
-                                parse_mode="Markdown"
+                                parse_mode="MarkdownV2"
                             )
                         except Exception as e:
                             print(f"Failed to notify orderer @{orderer_id}: {e}")
@@ -521,8 +576,15 @@ async def handle_message(update: Update, context: CallbackContext):
 
                     await context.bot.send_message(
                         chat_id=CHANNEL_ID,
-                        text=messages.NEW_CLAIM.format(order_id=order_id, order_location=order.location, order_time=order.time, order_text=order.order_text, order_details=order.details, delivery_fee=order.delivery_fee),
-                        parse_mode="Markdown",
+                        text=messages.NEW_CLAIM.format(
+                            order_id=escape_markdown(str(order_id), version=2),
+                            order_text=escape_markdown(order.order_text, version=2),
+                            order_location=escape_markdown(order.location, version=2),
+                            order_time=escape_markdown(order.time, version=2),
+                            order_details=escape_markdown(order.details, version=2),
+                            delivery_fee=escape_markdown(order.delivery_fee, version=2)
+                        ),
+                        parse_mode="MarkdownV2",
                         reply_markup=reply_markup
                     )
 
@@ -548,10 +610,11 @@ async def handle_message(update: Update, context: CallbackContext):
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 if order: 
                     await update.message.reply_text(
-                        f"✅ *Order Selected:* {order.order_text}\n\n"
+                        f"✅ *Order Selected:* {escape_markdown(order.order_text, version=2)}\n\n"
                         "Please choose an option:",
-                        parse_mode="Markdown",
-                        reply_markup=reply_markup)
+                        parse_mode="MarkdownV2",
+                        reply_markup=reply_markup
+                    )
                 
                     user_states[user_id] = {'selected_order': order.id}  # Store selected order ID
                 else: 
@@ -716,7 +779,8 @@ async def handle_my_orders(update: Update, context: CallbackContext):
     
     if orders:
         order_list = [
-            f"📌 *Order ID:* {o.id}\n🍽 *Meal:* {o.order_text}\n" for o in orders
+            f"📌 *Order ID:* {escape_markdown(str(o.id), version=2)}\n"
+            f"🍽 *Meal:* {escape_markdown(o.order_text, version=2)}\n" for o in orders
         ]
 
         # Break orders into multiple messages if too long (avoid Telegram message limit)
@@ -724,11 +788,11 @@ async def handle_my_orders(update: Update, context: CallbackContext):
             chunk = "\n".join(order_list[i:i + 10])
             await user_message.reply_text(
                 f"🔍 *My Orders:*\n\n{chunk}\n\n ",
-                parse_mode="Markdown",
+                parse_mode="MarkdownV2",
             )
     else:
         await user_message.reply_text(
-            "⏳ You do not have any orders right now!*\n\n"
+            "⏳ You do not have any orders right now\!*\n\n"
             "💡 Please place an order using /order.",
             parse_mode="Markdown",
             reply_markup=get_main_menu()
@@ -761,7 +825,8 @@ async def handle_payment(update: Update, context: CallbackContext):
     
     if orders:
         order_list = [
-            f"📌 *Order ID:* {o.id}\n🍽 *Meal:* {o.order_text}\n" for o in orders
+            f"📌 *Order ID:* {escape_markdown(str(o.id), version=2)}\n"
+            f"🍽 *Meal:* {escape_markdown(o.order_text, version=2)}\n" for o in orders
         ]
 
         # Break orders into multiple messages if too long (avoid Telegram message limit)
@@ -769,7 +834,7 @@ async def handle_payment(update: Update, context: CallbackContext):
             chunk = "\n".join(order_list[i:i + 10])
             await user_message.reply_text(
                 f"🔍 *My Orders:*\n\n{chunk}\n\n ",
-                parse_mode="Markdown",
+                parse_mode="MarkdownV2",
             )
         user_states[user_id] = {'state': 'selecting_order_id'}
     else:
@@ -878,14 +943,14 @@ async def handle_button(update: Update, context: CallbackContext):
         # Confirm order placement
         await query.message.edit_text(
             messages.ORDER_PLACED.format(
-                order_id=new_order.id,
-                order_text=new_order.order_text,
-                order_location=new_order.location,
-                order_time=new_order.time,
-                order_details=new_order.details,
-                delivery_fee=new_order.delivery_fee
+                order_id=escape_markdown(str(new_order.id), version=2),
+                order_text=escape_markdown(new_order.order_text, version=2),
+                order_location=escape_markdown(new_order.location, version=2),
+                order_time=escape_markdown(new_order.time, version=2),
+                order_details=escape_markdown(new_order.details, version=2),
+                delivery_fee=escape_markdown(new_order.delivery_fee, version=2)
             ),
-            parse_mode="Markdown",
+            parse_mode="MarkdownV2",
             reply_markup=get_main_menu()
         )
 
@@ -900,14 +965,14 @@ async def handle_button(update: Update, context: CallbackContext):
         await context.bot.send_message(
             chat_id=CHANNEL_ID,
             text=messages.NEW_ORDER.format(
-                order_id=new_order.id,
-                order_text=new_order.order_text,
-                order_location=new_order.location,
-                order_time=new_order.time,
-                order_details=new_order.details,
-                delivery_fee=new_order.delivery_fee
+                order_id=escape_markdown(str(new_order.id), version=2),
+                order_text=escape_markdown(new_order.order_text, version=2),
+                order_location=escape_markdown(new_order.location, version=2),
+                order_time=escape_markdown(new_order.time, version=2),
+                order_details=escape_markdown(new_order.details, version=2),
+                delivery_fee=escape_markdown(new_order.delivery_fee, version=2)
             ),
-            parse_mode="Markdown",
+            parse_mode="MarkdownV2",  # ✅ Use MarkdownV2
             reply_markup=reply_markup
         )
 
