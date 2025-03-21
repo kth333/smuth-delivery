@@ -45,7 +45,7 @@ ORDER_INSTRUCTIONS_FEE = (
 
 # Claim success notification
 CLAIM_SUCCESS_MESSAGE = (
-    "✅ *Order {order_id} Successfully Claimed!*\n\n"
+    "✅ *Order {order_id} Successfully Claimed\!*\n\n"
     "👤 *Orderer's Telegram Handle:* @{orderer_handle}\n\n"
     "📌 *Order Info:*\n"
     "🍽 *Meal:* {order_text}\n"
@@ -54,16 +54,16 @@ CLAIM_SUCCESS_MESSAGE = (
     "ℹ️ *Details:* {order_details}\n"
     "💸 *Delivery Fee Offered:* {delivery_fee}\n\n" 
     "🚀 *Next Steps:*\n"
-    "1️⃣ Buy the meal from the vendor.\n"
-    "2️⃣ Confirm purchase via the bot.\n"
-    "3️⃣ Deliver to the delivery location.\n"
-    "4️⃣ Receive your payment!\n\n"
-    "💡 Stay updated with your claimed orders for smooth transactions!"
+    "1️⃣ Buy the meal from the vendor\.\n"
+    "2️⃣ Confirm purchase via the bot\.\n"
+    "3️⃣ Deliver to the delivery location\.\n"
+    "4️⃣ Receive your payment\!\n\n"
+    "💡 Stay updated with your claimed orders for smooth transactions\!"
 )
 
 # Order claimed notification for the orderer
 ORDER_CLAIMED_NOTIFICATION = (
-    "📢 *Your Order Has Been Claimed!*\n\n"
+    "📢 *Your Order Has Been Claimed\!*\n\n"
     "📌 *Order ID:* {order_id}\n"
     "🍽 *Meal:* {order_text}\n"
     "📍 *Location:* {order_location}\n"
@@ -71,7 +71,7 @@ ORDER_CLAIMED_NOTIFICATION = (
     "ℹ️ *Details:* {order_details}\n"
     "💸 *Delivery Fee Offered:* {delivery_fee}\n\n" 
     "🚴 Claimed by: {claimed_by}\n\n"
-    "📍 *Stay tuned for updates on delivery!*"
+    "📍 *Stay tuned for updates on delivery\!*"
 )
 
 # Order ID request prompt
@@ -103,14 +103,14 @@ Would you like to confirm this order?
 
 # Order placement confirmation
 ORDER_PLACED = (
-    "✅ *Order Placed Successfully!*\n\n"
+    "✅ *Order Placed Successfully\!*\n\n"
     "📌 *Order ID:* {order_id}\n"
     "🍽 *Meal:* {order_text}\n"
     "📍 *Location:* {order_location}\n"
     "⏳ *Date/Time:* {order_time}\n"
     "ℹ️ *Details:* {order_details}\n"
     "💸 *Delivery Fee Offered:* {delivery_fee}\n\n" 
-    "⚡ Your order has been listed! A food runner will claim it soon."
+    "⚡ Your order has been listed\! A food runner will claim it soon\."
 )
 
 # New order notification in channel
@@ -124,7 +124,7 @@ NEW_ORDER = (
 )
 
 NEW_CLAIM = (
-    "✅ Order {order_id} has been claimed!\n\n"
+    "✅ Order {order_id} has been claimed\!\n\n"
     "🍽 *Meal:* {order_text}\n"
     "📍 *Location:* {order_location}\n"
     "⏳ *Date/Time:* {order_time}\n"
@@ -133,7 +133,7 @@ NEW_CLAIM = (
 )
 
 EDITED_ORDER = (
-    "📢 Order ID: {order_id} has been edited.\n"
+    "📢 Order ID: {order_id} has been edited\.\n"
     "🍽 *Meal:* {order_text}\n"
     "📍 *Location:* {order_location}\n"
     "⏳ *Date/Time:* {order_time}"
@@ -157,12 +157,12 @@ CLAIM_INVALID = "❌ *Invalid order claim request.* Please check the order ID an
 GENERAL_ERROR = "⚠️ Something went wrong. Please try again later."
 
 CLAIM_CONFIRMATION = (
-    "✅ You are about to claim *Order ID: {order_id}*.\n\n"
+    "✅ You are about to claim *Order ID: {order_id}*\.\n\n"
     "🍽 *Meal:* {order_text}\n"
     "📍 *Location:* {order_location}\n"
     "⏳ *Date/Time:* {order_time}\n"
     "ℹ️ *Details:* {order_details}\n"
     "💸 *Delivery Fee Offered:* {delivery_fee}\n\n" 
-    "Please confirm by sending the *Order ID* again.\n\n"
-    "To cancel, press the *Back* button below."
+    "Please confirm by sending the *Order ID* again\.\n\n"
+    "To cancel, press the *Back* button below\."
 )
