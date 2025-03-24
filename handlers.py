@@ -332,6 +332,7 @@ async def handle_message(update: Update, context: CallbackContext):
                 user_states[user_id]['state'] = 'awaiting_order_details'
 
                 # Ask for details next
+                print('test1')
                 await update.message.reply_text(
                     messages.ORDER_INSTRUCTIONS_DETAILS,
                     parse_mode="Markdown",
@@ -339,53 +340,7 @@ async def handle_message(update: Update, context: CallbackContext):
                 )
 
             elif state == 'awaiting_order_details':
-                # User is typing details
-                details_text = update.message.text.strip()
-                
-                # Validate details input
-                if not details_text:
-                    await update.message.reply_text(
-                        messages.INVALID_ORDER_TEXT,  # Message for empty orders
-                        parse_mode="Markdown",
-                        reply_markup=get_main_menu()
-                    )
-                    return
-
-                # Validate details length
-                if len(details_text) > MAX_ORDER_DETAILS_LENGTH:
-                    await update.message.reply_text(
-                        messages.ORDER_DETAILS_TOO_LONG.format(max_length=MAX_ORDER_DETAILS_LENGTH, order_length=len(details_text)),
-                        parse_mode="Markdown",
-                        reply_markup=get_main_menu()
-                    )
-                    return
-
-                # Store details in temporary state
-                user_orders[user_id]['details'] = details_text
-
-                # Save the order to the database
-                new_order = Order(
-                    order_text=user_orders[user_id]['meal'], 
-                    location=user_orders[user_id]['location'],
-                    time=user_orders[user_id]['time'],
-                    details=user_orders[user_id]['details'],
-                    user_id=user_id, 
-                    user_handle=update.message.from_user.username
-                )
-                session.add(new_order)
-                session.commit()
-
-                # Clear state after order placement
-                del user_orders[user_id]  # Clear order from temporary storage
-
-                # Ask for details next
-                await update.message.reply_text(
-                    messages.ORDER_INSTRUCTIONS_DETAILS,
-                    parse_mode="Markdown",
-                    reply_markup=get_main_menu()
-                )
-
-            elif state == 'awaiting_order_details':
+                print('test3')
                 # User is typing details
                 details_text = update.message.text.strip()
                 
@@ -459,7 +414,7 @@ async def handle_message(update: Update, context: CallbackContext):
                 reply_markup = InlineKeyboardMarkup(keyboard)
 
                 await update.message.reply_text(order_summary, parse_mode="MarkdownV2", reply_markup=reply_markup)
-
+            
             elif state == 'awaiting_confirmation':
                 try:
                     order_id = int(update.message.text.strip())  # The user types the order ID
