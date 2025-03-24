@@ -7,6 +7,8 @@ import messages  # Importing the messages from messages.py
 from payment import *
 from payout import *
 import os
+from datetime import datetime
+import pytz
 
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 MAX_ORDER_LENGTH = 100
@@ -22,15 +24,33 @@ async def start(update: Update, context: CallbackContext):
 
     message = update.message if update.message else update.callback_query.message
 
+    keyboard = [
+        [InlineKeyboardButton("Back", callback_data='start')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
     if args and args[0].startswith("claim_"):
         order_id = args[0].split("_")[1]  # Extract order ID from "claim_<order_id>"
         
+        # Fetch order from the database
+        session = session_local()
+        order = session.query(Order).filter_by(id=order_id, claimed=False).first()
+        session.close()
+
         # Store the order ID in user state and set to awaiting confirmation
         user_states[user_id] = {'state': 'awaiting_confirmation', 'order_id': int(order_id)}
 
         await message.reply_text(
-            messages.CLAIM_CONFIRMATION.format(order_id=order_id),  # Apply .format()
-            parse_mode="Markdown"
+            messages.CLAIM_CONFIRMATION.format(        
+                order_id=escape_markdown(str(order_id), version=2),
+                order_text=escape_markdown(order.order_text, version=2),
+                order_location=escape_markdown(order.location, version=2),
+                order_time=escape_markdown(order.time, version=2),
+                order_details=escape_markdown(order.details, version=2),
+                delivery_fee=escape_markdown(order.delivery_fee, version=2)
+            ),
+            parse_mode="MarkdownV2",
+            reply_markup=reply_markup
         )
 
     else:
@@ -91,6 +111,7 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
             order.runner_id = user_id
             user_handle = update.message.from_user.username
             order.runner_handle = user_handle
+            order.order_claimed_time = datetime.now(SGT)
             session.commit()
             
             claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
@@ -98,8 +119,16 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
             
             # Notify the claimer
             await update.message.reply_text(
-                messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, order_location=order.location, order_time=order.time, order_details=order.details, orderer_handle=order.user_handle),
-                parse_mode="Markdown",
+                messages.CLAIM_SUCCESS_MESSAGE.format(
+                    order_id=escape_markdown(str(order_id), version=2),
+                    order_text=escape_markdown(order.order_text, version=2),
+                    order_location=escape_markdown(order.location, version=2),
+                    order_time=escape_markdown(order.time, version=2),
+                    order_details=escape_markdown(order.details, version=2),
+                    delivery_fee=escape_markdown(order.delivery_fee, version=2),
+                    orderer_handle=escape_markdown(order.user_handle, version=2) if order.user_handle else "Unknown"
+                ),
+                parse_mode="MarkdownV2",
                 reply_markup=get_main_menu()
             )
             
@@ -111,14 +140,15 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
                     await context.bot.send_message(
                         chat_id=orderer_id,
                         text=messages.ORDER_CLAIMED_NOTIFICATION.format(
-                            order_id=order_id,
-                            order_text=order.order_text,
-                            order_location=order.location,
-                            order_time=order.time,
-                            order_details=order.details,
-                            claimed_by=claimed_by
+                            order_id=escape_markdown(str(order_id), version=2),
+                            order_text=escape_markdown(order.order_text, version=2),
+                            order_location=escape_markdown(order.location, version=2),
+                            order_time=escape_markdown(order.time, version=2),
+                            order_details=escape_markdown(order.details, version=2),
+                            delivery_fee=escape_markdown(order.delivery_fee, version=2),
+                            claimed_by=escape_markdown(claimed_by, version=2),
                         ),
-                        parse_mode="Markdown"
+                        parse_mode="MarkdownV2"
                     )
                 except Exception as e:
                     print(f"Failed to notify orderer @{orderer_id}: {e}")
@@ -132,10 +162,18 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
 
             await context.bot.send_message(
                 chat_id=CHANNEL_ID,
-                text=messages.NEW_CLAIM.format(order_id=order_id, order_location=order.location, order_time=order.time, order_text=order.order_text, order_details=order.details),
-                parse_mode="Markdown",
+                text=messages.NEW_CLAIM.format(
+                    order_id=escape_markdown(str(order_id), version=2),
+                    order_text=escape_markdown(order.order_text, version=2),
+                    order_location=escape_markdown(order.location, version=2),
+                    order_time=escape_markdown(order.time, version=2),
+                    order_details=escape_markdown(order.details, version=2),
+                    delivery_fee=escape_markdown(order.delivery_fee, version=2)
+                ),
+                parse_mode="MarkdownV2",
                 reply_markup=reply_markup
             )
+
         else:
             await message.reply_text(messages.CLAIM_FAILED.format(order_id=order_id), reply_markup=get_main_menu())
         session.close()
@@ -151,12 +189,21 @@ async def view_orders(update: Update, context: CallbackContext):
     session.close()
 
     if orders:
-        order_list = [f"📌 *Order ID:* {o.id}\n🍽 *Meal:* {o.order_text}\n" for o in orders]
+        order_list = [
+            f"📌 *Order ID:* {escape_markdown(str(o.id), version=2)}\n"
+            f"🍽 *Meal:* {escape_markdown(o.order_text, version=2)}\n"
+            f"📍 *Location:* {escape_markdown(o.location, version=2)}\n"
+            f"⏳ *Time:* {escape_markdown(o.time, version=2)}\n"
+            f"ℹ️ *Details:* {escape_markdown(o.details, version=2)}\n"
+            f"💸 *Delivery Fee:* {escape_markdown(o.delivery_fee, version=2)}\n"
+            for o in orders
+        ]
+
         for i in range(0, len(order_list), 10):  # Send 10 orders per message
             chunk = "\n".join(order_list[i:i + 10])
             await message.reply_text(
                 f"🔍 *Available Orders:*\n\n{chunk}",
-                parse_mode="Markdown",
+                parse_mode="MarkdownV2",
                 reply_markup=get_main_menu()
             )
     else:
@@ -331,27 +378,87 @@ async def handle_message(update: Update, context: CallbackContext):
                 # Clear state after order placement
                 del user_orders[user_id]  # Clear order from temporary storage
 
-                # Confirm order placement
+                # Ask for details next
                 await update.message.reply_text(
-                    messages.ORDER_PLACED.format(order_id=new_order.id, order_text=new_order.order_text, order_location=new_order.location, order_time=new_order.time, order_details=new_order.details),
+                    messages.ORDER_INSTRUCTIONS_DETAILS,
                     parse_mode="Markdown",
                     reply_markup=get_main_menu()
                 )
 
-                # Notify food runners in the channel
-                bot_username = context.bot.username
+            elif state == 'awaiting_order_details':
+                # User is typing details
+                details_text = update.message.text.strip()
+                
+                # Validate details input
+                if not details_text:
+                    await update.message.reply_text(
+                        messages.INVALID_ORDER_TEXT,  # Message for empty orders
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+                    return
+
+                # Validate details length
+                if len(details_text) > MAX_ORDER_DETAILS_LENGTH:
+                    await update.message.reply_text(
+                        messages.ORDER_DETAILS_TOO_LONG.format(max_length=MAX_ORDER_DETAILS_LENGTH, order_length=len(details_text)),
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+                    return
+
+                # Store details in temporary state
+                user_orders[user_id]['details'] = details_text
+                user_states[user_id]['state'] = 'awaiting_order_delivery_fee'
+
+                # Ask for delivery fee next
+                await update.message.reply_text(
+                    messages.ORDER_INSTRUCTIONS_FEE,
+                    parse_mode="Markdown",
+                    reply_markup=get_main_menu()
+                )
+
+            elif state == 'awaiting_order_delivery_fee':
+                # User is typing fee
+                fee_text = update.message.text.strip()
+                
+                # Validate fee input
+                if not fee_text:
+                    await update.message.reply_text(
+                        messages.INVALID_ORDER_TEXT,  # Message for empty orders
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+                    return
+
+                # Validate fee length
+                if len(fee_text) > MAX_ORDER_LENGTH:
+                    await update.message.reply_text(
+                        messages.ORDER_DETAILS_TOO_LONG.format(max_length=MAX_ORDER_LENGTH, order_length=len(fee_text)),
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+                    return
+
+                # Store fee in temporary state
+                user_orders[user_id]['delivery_fee'] = fee_text
+                user_states[user_id]['state'] = 'awaiting_order_confirmation'
+
+                order_summary = messages.ORDER_SUMMARY.format(
+                    order_text=escape_markdown(user_orders[user_id]['meal'], version=2),
+                    order_location=escape_markdown(user_orders[user_id]['location'], version=2),
+                    order_time=escape_markdown(user_orders[user_id]['time'], version=2),
+                    order_details=escape_markdown(user_orders[user_id]['details'], version=2),
+                    delivery_fee=escape_markdown(user_orders[user_id]['delivery_fee'], version=2)
+                )
+
                 keyboard = [
-                    [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{new_order.id}")],
-                    [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+                    [InlineKeyboardButton("✅ Confirm Order", callback_data=f"confirm_order_{user_id}")],
+                    [InlineKeyboardButton("❌ Cancel Order", callback_data=f"cancel_order_{user_id}")]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
 
-                await context.bot.send_message(
-                    chat_id=CHANNEL_ID,
-                    text=messages.NEW_ORDER.format(order_id=new_order.id, order_text=new_order.order_text, order_location=new_order.location, order_time=new_order.time, order_details=new_order.details),
-                    parse_mode="Markdown",
-                    reply_markup=reply_markup
-                )
+                await update.message.reply_text(order_summary, parse_mode="MarkdownV2", reply_markup=reply_markup)
 
             elif state == 'awaiting_confirmation':
                 try:
@@ -384,6 +491,7 @@ async def handle_message(update: Update, context: CallbackContext):
                     order.runner_id = user_id
                     user_handle = update.message.from_user.username
                     order.runner_handle = user_handle
+                    order.order_claimed_time = datetime.now(SGT)
                     session.commit()
 
                     claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
@@ -393,8 +501,16 @@ async def handle_message(update: Update, context: CallbackContext):
 
                     # Notify the claimer
                     await update.message.reply_text(
-                        messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, order_location=order.location, order_time=order.time, order_details=order.details, orderer_handle=order.user_handle),
-                        parse_mode="Markdown",
+                        messages.CLAIM_SUCCESS_MESSAGE.format(
+                            order_id=escape_markdown(str(order_id), version=2),
+                            order_text=escape_markdown(order.order_text, version=2),
+                            order_location=escape_markdown(order.location, version=2),
+                            order_time=escape_markdown(order.time, version=2),
+                            order_details=escape_markdown(order.details, version=2),
+                            delivery_fee=escape_markdown(order.delivery_fee, version=2),
+                            orderer_handle=escape_markdown(order.user_handle, version=2) if order.user_handle else "Unknown"
+                        ),
+                        parse_mode="MarkdownV2",
                         reply_markup=get_main_menu()
                     )
 
@@ -404,14 +520,15 @@ async def handle_message(update: Update, context: CallbackContext):
                             await context.bot.send_message(
                                 chat_id=orderer_id,
                                 text=messages.ORDER_CLAIMED_NOTIFICATION.format(
-                                    order_id=order_id,
-                                    order_text=order.order_text,
-                                    order_location=order.location,
-                                    order_time=order.time,
-                                    order_details=order.details,
-                                    claimed_by=claimed_by
+                                    order_id=escape_markdown(str(order_id), version=2),  # ✅ Escape input correctly
+                                    order_text=escape_markdown(order.order_text, version=2),
+                                    order_location=escape_markdown(order.location, version=2),
+                                    order_time=escape_markdown(order.time, version=2),
+                                    order_details=escape_markdown(order.details, version=2),
+                                    delivery_fee=escape_markdown(order.delivery_fee, version=2),
+                                    claimed_by=escape_markdown(claimed_by, version=2),
                                 ),
-                                parse_mode="Markdown"
+                                parse_mode="MarkdownV2"
                             )
                         except Exception as e:
                             print(f"Failed to notify orderer @{orderer_id}: {e}")
@@ -425,8 +542,15 @@ async def handle_message(update: Update, context: CallbackContext):
 
                     await context.bot.send_message(
                         chat_id=CHANNEL_ID,
-                        text=messages.NEW_CLAIM.format(order_id=order_id, order_location=order.location, order_time=order.time, order_text=order.order_text, order_details=order.details),
-                        parse_mode="Markdown",
+                        text=messages.NEW_CLAIM.format(
+                            order_id=escape_markdown(str(order_id), version=2),
+                            order_text=escape_markdown(order.order_text, version=2),
+                            order_location=escape_markdown(order.location, version=2),
+                            order_time=escape_markdown(order.time, version=2),
+                            order_details=escape_markdown(order.details, version=2),
+                            delivery_fee=escape_markdown(order.delivery_fee, version=2)
+                        ),
+                        parse_mode="MarkdownV2",
                         reply_markup=reply_markup
                     )
 
@@ -459,17 +583,26 @@ async def handle_message(update: Update, context: CallbackContext):
                     order.runner_id = user_id
                     user_handle = update.message.from_user.username
                     order.runner_handle = user_handle
+                    order.order_claimed_time = datetime.now(SGT)
                     session.commit()
 
                     claimed_by = f"@{user_handle}" if user_handle else "an unknown user"
                     orderer_id = order.user_id
 
                     del user_states[user_id]  # Clear state
-
+                    
                     # Notify the claimer
                     await update.message.reply_text(
-                        messages.CLAIM_SUCCESS_MESSAGE.format(order_id=order_id, order_text=order.order_text, order_location=order.location, order_time=order.time, order_details=order.details, orderer_handle=order.user_handle),
-                        parse_mode="Markdown",
+                        messages.CLAIM_SUCCESS_MESSAGE.format(
+                            order_id=escape_markdown(str(order_id), version=2),
+                            order_text=escape_markdown(order.order_text, version=2),
+                            order_location=escape_markdown(order.location, version=2),
+                            order_time=escape_markdown(order.time, version=2),
+                            order_details=escape_markdown(order.details, version=2),
+                            delivery_fee=escape_markdown(order.delivery_fee, version=2),
+                            orderer_handle=escape_markdown(order.user_handle, version=2) if order.user_handle else "Unknown"
+                        ),
+                        parse_mode="MarkdownV2",
                         reply_markup=get_main_menu()
                     )
 
@@ -479,14 +612,15 @@ async def handle_message(update: Update, context: CallbackContext):
                             await context.bot.send_message(
                                 chat_id=orderer_id,
                                 text=messages.ORDER_CLAIMED_NOTIFICATION.format(
-                                    order_id=order_id,
-                                    order_text=order.order_text,
-                                    order_location=order.location,
-                                    order_time=order.time,
-                                    order_details=order.details,
-                                    claimed_by=claimed_by
+                                    order_id=escape_markdown(str(order_id), version=2),  # ✅ Escape input correctly
+                                    order_text=escape_markdown(order.order_text, version=2),
+                                    order_location=escape_markdown(order.location, version=2),
+                                    order_time=escape_markdown(order.time, version=2),
+                                    order_details=escape_markdown(order.details, version=2),
+                                    delivery_fee=escape_markdown(order.delivery_fee, version=2),
+                                    claimed_by=escape_markdown(claimed_by, version=2),
                                 ),
-                                parse_mode="Markdown"
+                                parse_mode="MarkdownV2"
                             )
                         except Exception as e:
                             print(f"Failed to notify orderer @{orderer_id}: {e}")
@@ -500,8 +634,15 @@ async def handle_message(update: Update, context: CallbackContext):
 
                     await context.bot.send_message(
                         chat_id=CHANNEL_ID,
-                        text=messages.NEW_CLAIM.format(order_id=order_id, order_location=order.location, order_time=order.time, order_text=order.order_text, order_details=order.details),
-                        parse_mode="Markdown",
+                        text=messages.NEW_CLAIM.format(
+                            order_id=escape_markdown(str(order_id), version=2),
+                            order_text=escape_markdown(order.order_text, version=2),
+                            order_location=escape_markdown(order.location, version=2),
+                            order_time=escape_markdown(order.time, version=2),
+                            order_details=escape_markdown(order.details, version=2),
+                            delivery_fee=escape_markdown(order.delivery_fee, version=2)
+                        ),
+                        parse_mode="MarkdownV2",
                         reply_markup=reply_markup
                     )
 
@@ -519,10 +660,7 @@ async def handle_message(update: Update, context: CallbackContext):
                 order = session.query(Order).filter_by(id=user_message, user_id=user_id).first()
                 session.close()
             
-                myorders_keyboard = [
-                    [InlineKeyboardButton("Complete Order", callback_data='complete_order')],
-                    [InlineKeyboardButton("Make Payment", callback_data='handle_payment')],
-                    [InlineKeyboardButton("Edit Order", callback_data='edit_order')],
+                keyboard = [
                     [InlineKeyboardButton("Delete Order", callback_data='delete_order')],
                     [InlineKeyboardButton("Back", callback_data='start')]
                 ]
@@ -531,10 +669,11 @@ async def handle_message(update: Update, context: CallbackContext):
             
                 if order: 
                     await update.message.reply_text(
-                        f"✅ *Order Selected:* {order.order_text}\n\n"
+                        f"✅ *Order Selected:* {escape_markdown(order.order_text, version=2)}\n\n"
                         "Please choose an option:",
-                        parse_mode="Markdown",
-                        reply_markup=reply_markup)
+                        parse_mode="MarkdownV2",
+                        reply_markup=reply_markup
+                    )
                 
                     user_states[user_id] = {'selected_order': order.id}  # Store selected order ID
                 else: 
@@ -712,13 +851,15 @@ async def help_command(update: Update, context: CallbackContext):
     help_text = (
         "💡 *SmuthDelivery Bot Guide* 🚀\n\n"
         "📌 *How It Works:*\n"
-        "1️⃣ *Place an Order:* To place an order, use the bot to enter the details of your meal, delivery location, and preferred delivery time.\n"
-        "2️⃣ *Claim an Order \(Food Runner\):* If you're a food runner, check available orders and use the bot to claim one to pick up from a vendor.\n"
-        "3️⃣ *Delivering Food:* After claiming an order, pick up the food from the vendor and deliver it to the user’s specified location.\n"
+        "1️⃣ *Place an Order:* To place an order, use the bot to enter the details of your meal, delivery location, time, and the delivery fee you wish to pay.\n"
+        "2️⃣ *Claim an Order \(Food Runner\):* If you're a food runner, check available orders and claim one.\n"
+        "3️⃣ *Delivering Food:* After claiming an order, get the food and deliver it to the user’s specified location.\n"
         "4️⃣ *Communicate via Telegram Chat:* Once you've claimed an order, communicate with the orderer via Telegram chat to finalize details.\n\n"
-        
+        "The bot privately sends the Telegram handles of the orderer/runner to each party once an order is claimed. Please ensure your Telegram chat is open to new contacts so that orderers/runners can communicate with you.\n\n"
+
         "🔹 This bot is still in very early development. Features are not perfect.\n"
-        f"🔹 If you have any issues or need help, contact {admin_handle} for help.\n\n"
+        f"🔹 If you have any issues or suggestions, leave your comments here \(along with your Telegram handle if you want us to get back to you\)\:\n"
+        "https://forms.gle/f6FAuLeXSbw1vSSM7\n\n"
         
         "📢 *Stay Updated:* Subscribe to our channel for real\-time updates on new orders: [Smuth Delivery]\(https://t.me/smuth\_delivery\)"
     )
@@ -750,40 +891,19 @@ async def handle_my_orders(update: Update, context: CallbackContext):
     claimed_orders = session.query(Order).filter_by(runner_id=user_id).all()
     session.close()
     
-    if my_orders or claimed_orders:
-        if my_orders:
-            order_list = [
-                f"📌 *Order ID:* {o.id}\n🍽 *Meal:* {o.order_text}\n" for o in my_orders
-            ]
+    if orders:
+        order_list = [
+            f"📌 *Order ID:* {escape_markdown(str(o.id), version=2)}\n"
+            f"🍽 *Meal:* {escape_markdown(o.order_text, version=2)}\n" for o in orders
+        ]
 
-            # Break orders into multiple messages if too long (avoid Telegram message limit)
-            for i in range(0, len(order_list), 10):  # Send 10 orders per message
-                chunk = "\n".join(order_list[i:i + 10])
-                await user_message.reply_text(
-                    f"🔍 *My Orders:*\n\n{chunk}\n\n ",
-                    parse_mode="Markdown",
-                )
-        if claimed_orders: # WIP
-            order_list = [
-                f"📌 *Order ID:* {o.id}\n🍽 *Meal:* {o.order_text}\n" for o in claimed_orders
-            ]
-
-            # Break orders into multiple messages if too long (avoid Telegram message limit)
-            for i in range(0, len(order_list), 10):  # Send 10 orders per message
-                chunk = "\n".join(order_list[i:i + 10])
-                await user_message.reply_text(
-                    f"🔍 *Claimed Orders (WIP) :*\n\n{chunk}\n\n ",
-                    parse_mode="Markdown",
-                )
-                
-        keyboard = [[InlineKeyboardButton("Back", callback_data='start')]]
-    
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        user_states[user_id] = {'state': 'selecting_order_id'}
-        
-        await message.reply_text("Please enter the Order ID", reply_markup=reply_markup)
-            
+        # Break orders into multiple messages if too long (avoid Telegram message limit)
+        for i in range(0, len(order_list), 10):  # Send 10 orders per message
+            chunk = "\n".join(order_list[i:i + 10])
+            await user_message.reply_text(
+                f"🔍 *My Orders:*\n\n{chunk}\n\n ",
+                parse_mode="MarkdownV2",
+            )
     else:
         await user_message.reply_text(
             f"⏳ *You do not have any orders right now!* \n\n"
@@ -810,12 +930,18 @@ async def handle_payment(update: Update, context: CallbackContext):
     
     if orders:
         order_list = [
-            f"📌 *Order ID:* {o.id}\n🍽 *Meal:* {o.order_text}\n" for o in orders
+            f"📌 *Order ID:* {escape_markdown(str(o.id), version=2)}\n"
+            f"🍽 *Meal:* {escape_markdown(o.order_text, version=2)}\n" for o in orders
         ]
-        
-        user_states[user_id] = {'state': 'awaiting_payment_amount'}
-        await message.reply_text("Please enter your payment amount (SGD)")
-        
+
+        # Break orders into multiple messages if too long (avoid Telegram message limit)
+        for i in range(0, len(order_list), 10):  # Send 10 orders per message
+            chunk = "\n".join(order_list[i:i + 10])
+            await user_message.reply_text(
+                f"🔍 *My Orders:*\n\n{chunk}\n\n ",
+                parse_mode="MarkdownV2",
+            )
+        user_states[user_id] = {'state': 'selecting_order_id'}
     else:
         await message.reply_text(
             "⏳ You do not have any orders right now!*\n\n"
@@ -1008,22 +1134,92 @@ async def handle_button(update: Update, context: CallbackContext):
     """Handles button presses from InlineKeyboardMarkup."""
     query = update.callback_query
     await query.answer()
-    
+
     user_id = update.effective_user.id
-    
-    actions = {
-        'start': start,
-        'order': handle_order,
-        'vieworders': view_orders,
-        'claim': handle_claim,
-        'myorders': handle_my_orders,
-        'help': help_command,
-        'edit_order': edit_order,
-        'delete_order': delete_order,
-        'handle_payment': handle_payment,
-        'complete_order': complete_order,
-        'handle_completed_order': handle_completed_order,
+    callback_data = query.data  # Store callback data
+
+    if callback_data.startswith("confirm_order_"):
+        # Proceed with saving the order
+        new_order = Order(
+            order_text=user_orders[user_id]['meal'], 
+            location=user_orders[user_id]['location'],
+            time=user_orders[user_id]['time'],
+            details=user_orders[user_id]['details'],
+            delivery_fee=user_orders[user_id]['delivery_fee'],
+            user_id=user_id, 
+            user_handle=query.from_user.username,
+            order_placed_time=datetime.now(SGT)
+        )
+        session = session_local()
+        session.add(new_order)
+        session.commit()
+
+        # Clear user state
+        del user_states[user_id]
+        del user_orders[user_id]
+
+        # Confirm order placement
+        await query.message.edit_text(
+            messages.ORDER_PLACED.format(
+                order_id=escape_markdown(str(new_order.id), version=2),
+                order_text=escape_markdown(new_order.order_text, version=2),
+                order_location=escape_markdown(new_order.location, version=2),
+                order_time=escape_markdown(new_order.time, version=2),
+                order_details=escape_markdown(new_order.details, version=2),
+                delivery_fee=escape_markdown(new_order.delivery_fee, version=2)
+            ),
+            parse_mode="MarkdownV2",
+            reply_markup=get_main_menu()
+        )
+
+        # Notify food runners
+        bot_username = context.bot.username
+        keyboard = [
+            [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{new_order.id}")],
+            [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await context.bot.send_message(
+            chat_id=CHANNEL_ID,
+            text=messages.NEW_ORDER.format(
+                order_id=escape_markdown(str(new_order.id), version=2),
+                order_text=escape_markdown(new_order.order_text, version=2),
+                order_location=escape_markdown(new_order.location, version=2),
+                order_time=escape_markdown(new_order.time, version=2),
+                order_details=escape_markdown(new_order.details, version=2),
+                delivery_fee=escape_markdown(new_order.delivery_fee, version=2)
+            ),
+            parse_mode="MarkdownV2",  # ✅ Use MarkdownV2
+            reply_markup=reply_markup
+        )
+
+    elif callback_data.startswith("cancel_order_"):
+        # Cancel order process
+        del user_states[user_id]
+        del user_orders[user_id]
+
+        await query.message.edit_text(
+            "❌ Your order has been canceled. If you'd like to place a new order, use the menu below.",
+            parse_mode="Markdown",
+            reply_markup=get_main_menu()
+        )
+
+    elif query.data == 'handle_payment':
+        user_states[user_id]['state'] = 'awaiting_payment_amount'
+        await query.message.reply_text("Please enter your payment amount")
+
+    else:
+        actions = {
+            'start': start,
+            'order': handle_order,
+            'vieworders': view_orders,
+            'claim': handle_claim,
+            'myorders': handle_my_orders,
+            'help': help_command,
+            'edit_order': edit_order,
+            'delete_order': delete_order,
         }
 
-    if query.data in actions:
-        await actions[query.data](update, context)
+        if query.data in actions:
+            await actions[query.data](update, context)  # Execute corresponding function

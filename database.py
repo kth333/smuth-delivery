@@ -1,9 +1,11 @@
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, Sequence, ForeignKey, Float, BigInteger
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, Sequence, ForeignKey, Float, BigInteger, DateTime
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
 from dotenv import load_dotenv
+from datetime import datetime
+import pytz
 
 # Load environment variables
 load_dotenv()
@@ -27,6 +29,8 @@ class RunnerReview(Base):
     rating = Column(Float, nullable=False)  # Rating from 1 to 5
     comment = Column(String, nullable=True)
 
+SGT = pytz.timezone("Asia/Singapore")
+
 class Order(Base):
     __tablename__ = 'orders'
     id = Column(Integer, Sequence('order_id_seq'), primary_key=True)
@@ -34,13 +38,15 @@ class Order(Base):
     location = Column(String, nullable=True)
     time = Column(String, nullable=True)
     details = Column(String, nullable=True)
+    delivery_fee = Column(String, nullable=True)
     claimed = Column(Boolean, default=False)
     user_id = Column(BigInteger, nullable=False)
     runner_id = Column(BigInteger, nullable=True)
     user_handle = Column(String, nullable=True)
     runner_handle = Column(String, nullable=True)
     completed = Column(Boolean, nullable=False, default=False)
-    # payment_amount = Column(Float, nullable=True)
+    order_placed_time = Column(DateTime, default=lambda: datetime.now(SGT))  
+    order_claimed_time = Column(DateTime, nullable=True)
     
 class StripeAccount(Base):
     __tablename__ = 'stripe_accounts'
