@@ -46,6 +46,15 @@ class Order(Base):
     runner_handle = Column(String, nullable=True)
     order_placed_time = Column(DateTime, default=lambda: datetime.now(SGT))  
     order_claimed_time = Column(DateTime, nullable=True)
+    
+class ReportLogs(Base):
+    __tablename__ = 'report_logs'
+    id = Column(Integer, Sequence('report_id_seq'), primary_key=True)
+    timestamp = Column(DateTime, default=lambda: datetime.now(SGT))
+    reporterId = Column(String, nullable=False)
+    orderId = Column(String, nullable=False)
+    subjectId = Column(String, nullable=False)
+    report_details = Column(String, nullable=False)
 
 # Create all tables in the database
 def create_tables():

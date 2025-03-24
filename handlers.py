@@ -609,6 +609,7 @@ async def handle_message(update: Update, context: CallbackContext):
             
                 keyboard = [
                     [InlineKeyboardButton("Delete Order", callback_data='delete_order')],
+                    [InlineKeyboardButton("Report Runner", callback_data='report_user')],
                     [InlineKeyboardButton("Back", callback_data='start')]
                 ]
             
@@ -723,6 +724,40 @@ async def handle_message(update: Update, context: CallbackContext):
                     )
             
                 session.close()
+            
+            elif state == 'reporting_user':
+                report_details = update.message.text
+                order_id = user_states.get(user_id)['selected_order']
+                
+                session = session_local()
+                order = session.query(Order).filter_by(id=order_id).first()
+                
+                reporter_id = order.user_id
+                subject_id = order.runner_id
+                
+                if subject_id == None:
+                    await update.message.reply_text(
+                        f"Your order has no runner.\n"
+                        "Returning to the main menu.",
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+                else:
+                    new_report = ReportLogs(
+                        reporterId=reporter_id,
+                        orderId=order_id,
+                        subjectId=subject_id,
+                        report_details=report_details
+                    )
+                    session.add(new_report)
+                    session.commit()
+                    
+                    await update.message.reply_text(
+                        f"Your report has been submitted.\n"
+                        "We will get back to you ASAP. Thank you!",
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
 
     except Exception as e:
         print(f"[ERROR] Exception occurred: {e}")  # Log the actual error
@@ -797,7 +832,7 @@ async def handle_my_orders(update: Update, context: CallbackContext):
             )
     else:
         await user_message.reply_text(
-            "⏳ You do not have any orders right now!*\n\n"
+            "*⏳ You do not have any orders right now!*\n\n"
             "💡 Please place an order using /order.",
             parse_mode="Markdown",
             reply_markup=get_main_menu()
@@ -917,6 +952,33 @@ async def delete_order(update: Update, context: CallbackContext):
             parse_mode="Markdown"
         )
     session.close()
+    
+async def report_user(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    
+    if update.message:
+        message = update.message
+    elif update.callback_query:
+        message = update.callback_query.message
+        
+    user_states[user_id]['state'] = 'reporting_user'
+        
+    await message.reply_text(
+        f"🚨 Please Review Before Reporting 🚨\n"
+        "Thank you for helping us maintain a safe and respectful environment. Before you submit your report, please make sure to follow these important guidelines:\n\n"
+        "1. *🔍 Accurate Information*\n"
+        "Ensure that all details you provide are **truthful**, **clear**, and **accurate**. Providing false or misleading information can have serious consequences. Please double-check your submission before sending it.\n\n"
+        "2. *📎 Keep Sufficient Evidence*\n"
+        "Save any *evidence* or documentation (e.g., screenshots, logs, emails) that supports your claim. The more detailed the evidence, the better we can investigate the issue thoroughly.\n\n"
+        "3. *🔒 Confidentiality*\n" 
+        "Your report will be handled with **confidentiality**. However, depending on the situation, it may be shared with relevant parties for resolution.\n\n"
+        "4. *🗣️ Respect*\n"
+        "We ask that you remain **respectful** and **professional**. Offensive language, personal attacks, or inappropriate comments will not be tolerated.\n\n"
+        "Once submitted, your report will be reviewed by the appropriate team, and you'll be kept informed about the resolution status.\n\n"
+        "Please input the details of the report : ",
+        parse_mode="Markdown"
+    )
+    
 
 async def handle_button(update: Update, context: CallbackContext):
     """Handles button presses from InlineKeyboardMarkup."""
@@ -1007,6 +1069,7 @@ async def handle_button(update: Update, context: CallbackContext):
             'help': help_command,
             'edit_order': edit_order,
             'delete_order': delete_order,
+            'report_user': report_user,
         }
 
         if query.data in actions:
