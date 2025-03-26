@@ -6,12 +6,62 @@ from utils import get_main_menu  # Importing the helper function for generating 
 import messages  # Importing the messages from messages.py
 from payment import *
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
+from telegram import Bot
+import logging
+import re
+
+load_dotenv()
+
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+bot = Bot(token=TOKEN)
 
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 MAX_ORDER_LENGTH = 100
 MAX_ORDER_DETAILS_LENGTH = 500
+
+SGT = pytz.timezone("Asia/Singapore")
+
+def validate_strict_time_format(user_input: str) -> datetime | None:
+    pattern = r'^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])\s+([0-1]?[0-9]):([0-5][0-9])(am|pm)$'
+    if not re.match(pattern, user_input.strip().lower()):
+        return None
+
+    try:
+        year = datetime.now(SGT).year
+        full_input = f"{year}-{user_input.strip()}"  # e.g., "2025-03-28 4:10pm"
+        dt = datetime.strptime(full_input, "%Y-%m-%d %I:%M%p")
+        dt = SGT.localize(dt)
+        return dt
+    except Exception:
+        return None
+
+def expire_old_orders(bot: Bot):
+    now = datetime.now(SGT)
+    session = session_local()
+
+    expired_orders = session.query(Order).filter(
+        Order.claimed == False,
+        Order.expired == False,
+        Order.latest_pickup_time < now
+    ).all()
+
+    for order in expired_orders:
+        order.expired = True
+        logging.info(f"[EXPIRED] Order ID {order.id} marked as expired")
+
+        try:
+            bot.send_message(
+                chat_id=order.user_id,
+                text=f"Sorry, we couldn't find you a runner for *Order ID {order.id}*.",
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            logging.warning(f"Failed to notify user {order.user_id} about expired order: {e}")
+
+    session.commit()
+    session.close()
 
 user_states = {} # Global variable to track user states
 user_orders = {}  # Dictionary to store user orders
@@ -44,7 +94,9 @@ async def start(update: Update, context: CallbackContext):
                 order_id=escape_markdown(str(order_id), version=2),
                 order_text=escape_markdown(order.order_text, version=2),
                 order_location=escape_markdown(order.location, version=2),
-                order_time=escape_markdown(order.time, version=2),
+                order_time=escape_markdown(
+                    f"{order.earliest_pickup_time} - {order.latest_pickup_time}", version=2
+                ),
                 order_details=escape_markdown(order.details, version=2),
                 delivery_fee=escape_markdown(order.delivery_fee, version=2)
             ),
@@ -117,7 +169,9 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
                     order_id=escape_markdown(str(order_id), version=2),
                     order_text=escape_markdown(order.order_text, version=2),
                     order_location=escape_markdown(order.location, version=2),
-                    order_time=escape_markdown(order.time, version=2),
+                    order_time=escape_markdown(
+                        f"{order.earliest_pickup_time} - {order.latest_pickup_time}", version=2
+                    ),
                     order_details=escape_markdown(order.details, version=2),
                     delivery_fee=escape_markdown(order.delivery_fee, version=2),
                     orderer_handle=escape_markdown(order.user_handle, version=2) if order.user_handle else "Unknown"
@@ -137,7 +191,9 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
                             order_id=escape_markdown(str(order_id), version=2),
                             order_text=escape_markdown(order.order_text, version=2),
                             order_location=escape_markdown(order.location, version=2),
-                            order_time=escape_markdown(order.time, version=2),
+                            order_time=escape_markdown(
+                                f"{order.earliest_pickup_time} - {order.latest_pickup_time}", version=2
+                            ),
                             order_details=escape_markdown(order.details, version=2),
                             delivery_fee=escape_markdown(order.delivery_fee, version=2),
                             claimed_by=escape_markdown(claimed_by, version=2),
@@ -160,7 +216,9 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
                     order_id=escape_markdown(str(order_id), version=2),
                     order_text=escape_markdown(order.order_text, version=2),
                     order_location=escape_markdown(order.location, version=2),
-                    order_time=escape_markdown(order.time, version=2),
+                    order_time=escape_markdown(
+                        f"{order.earliest_pickup_time} - {order.latest_pickup_time}", version=2
+                    ),
                     order_details=escape_markdown(order.details, version=2),
                     delivery_fee=escape_markdown(order.delivery_fee, version=2)
                 ),
@@ -177,9 +235,12 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
 async def view_orders(update: Update, context: CallbackContext):
     """Handles the /vieworders command to show available orders."""
     message = update.message if update.message else update.callback_query.message
-
+    now = datetime.now(SGT)
     session = session_local()
-    orders = session.query(Order).filter_by(claimed=False).all()
+    orders = session.query(Order).filter(
+        Order.claimed == False,
+        Order.latest_pickup_time > now
+    ).all()
     session.close()
 
     if orders:
@@ -290,42 +351,86 @@ async def handle_message(update: Update, context: CallbackContext):
 
                 # Store location in temporary state
                 user_orders[user_id]['location'] = location_text
-                user_states[user_id]['state'] = 'awaiting_order_time'
+                user_states[user_id]['state'] = 'awaiting_order_earliest_time'
 
                 # Ask for time next
                 await update.message.reply_text(
-                    messages.ORDER_INSTRUCTIONS_TIME,
+                    messages.ORDER_INSTRUCTIONS_EARLIEST_TIME,
                     parse_mode="Markdown",
                     reply_markup=get_main_menu()
                 )
 
-            elif state == 'awaiting_order_time':
-                # User is typing a time
+            elif state == 'awaiting_order_earliest_time':
                 time_text = update.message.text.strip()
+                earliest_dt = validate_strict_time_format(time_text)
 
-                # Validate time input
-                if not time_text:
+                if not earliest_dt:
                     await update.message.reply_text(
-                        messages.INVALID_ORDER_TEXT,  # Message for empty orders
+                        "❌ Invalid time format. Please use `MM-DD HH:MMam/pm`, e.g. `03-28 4:10pm`",
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+                    return
+                now = datetime.now(SGT)
+                if earliest_dt < now:
+                    await update.message.reply_text(
+                        "⚠️ Earliest pickup time must be in the *future*. Please enter a valid future time.",
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+                    return
+                if earliest_dt > now + timedelta(days=7):
+                    await update.message.reply_text(
+                        "⚠️ Earliest pickup time must be within the *next 7 days*. Please try again.",
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+                    return
+                user_orders[user_id]['earliest_dt'] = earliest_dt
+                user_orders[user_id]['earliest_input'] = time_text  # for display
+                user_states[user_id]['state'] = 'awaiting_order_latest_time'
+
+                await update.message.reply_text(
+                    messages.ORDER_INSTRUCTIONS_LATEST_TIME,
+                    parse_mode="Markdown",
+                    reply_markup=get_main_menu()
+                )
+
+            elif state == 'awaiting_order_latest_time':
+                time_text = update.message.text.strip()
+                latest_dt = validate_strict_time_format(time_text)
+
+                if not latest_dt:
+                    await update.message.reply_text(
+                        "❌ Invalid time format. Please use `MM-DD HH:MMam/pm`, e.g. `03-28 5:30pm`.",
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+                    return
+                
+                earliest_dt = user_orders[user_id]['earliest_dt']
+
+                if latest_dt <= earliest_dt:
+                    await update.message.reply_text(
+                        "⚠️ Latest pickup time must be *after* the earliest pickup time. Please try again.",
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
                     return
 
-                # Validate time length
-                if len(time_text) > MAX_ORDER_LENGTH:
+                # Max range rule
+                if latest_dt - earliest_dt > timedelta(hours=3):
                     await update.message.reply_text(
-                        messages.ORDER_TOO_LONG.format(max_length=MAX_ORDER_LENGTH, order_length=len(time_text)),
+                        "⚠️ Time range too wide. *Latest pickup time* must be within *3 hours* of the earliest.",
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
                     return
 
-                # Store time in temporary state
-                user_orders[user_id]['time'] = time_text
+                user_orders[user_id]['latest_dt'] = latest_dt
+                user_orders[user_id]['latest_input'] = time_text  # for display
                 user_states[user_id]['state'] = 'awaiting_order_details'
 
-                # Ask for details next
                 await update.message.reply_text(
                     messages.ORDER_INSTRUCTIONS_DETAILS,
                     parse_mode="Markdown",
@@ -394,7 +499,9 @@ async def handle_message(update: Update, context: CallbackContext):
                 order_summary = messages.ORDER_SUMMARY.format(
                     order_text=escape_markdown(user_orders[user_id]['meal'], version=2),
                     order_location=escape_markdown(user_orders[user_id]['location'], version=2),
-                    order_time=escape_markdown(user_orders[user_id]['time'], version=2),
+                    order_time=escape_markdown(
+                        f"{user_orders[user_id]['earliest_input']} - {user_orders[user_id]['latest_input']}", version=2
+                    ),
                     order_details=escape_markdown(user_orders[user_id]['details'], version=2),
                     delivery_fee=escape_markdown(user_orders[user_id]['delivery_fee'], version=2)
                 )
@@ -452,7 +559,9 @@ async def handle_message(update: Update, context: CallbackContext):
                             order_id=escape_markdown(str(order_id), version=2),
                             order_text=escape_markdown(order.order_text, version=2),
                             order_location=escape_markdown(order.location, version=2),
-                            order_time=escape_markdown(order.time, version=2),
+                            order_time=escape_markdown(
+                                f"{order.earliest_pickup_time} - {order.latest_pickup_time}", version=2
+                            ),
                             order_details=escape_markdown(order.details, version=2),
                             delivery_fee=escape_markdown(order.delivery_fee, version=2),
                             orderer_handle=escape_markdown(order.user_handle, version=2) if order.user_handle else "Unknown"
@@ -470,7 +579,9 @@ async def handle_message(update: Update, context: CallbackContext):
                                     order_id=escape_markdown(str(order_id), version=2),  # ✅ Escape input correctly
                                     order_text=escape_markdown(order.order_text, version=2),
                                     order_location=escape_markdown(order.location, version=2),
-                                    order_time=escape_markdown(order.time, version=2),
+                                    order_time=escape_markdown(
+                                        f"{order.earliest_pickup_time} - {order.latest_pickup_time}", version=2
+                                    ),
                                     order_details=escape_markdown(order.details, version=2),
                                     delivery_fee=escape_markdown(order.delivery_fee, version=2),
                                     claimed_by=escape_markdown(claimed_by, version=2),
@@ -493,7 +604,9 @@ async def handle_message(update: Update, context: CallbackContext):
                             order_id=escape_markdown(str(order_id), version=2),
                             order_text=escape_markdown(order.order_text, version=2),
                             order_location=escape_markdown(order.location, version=2),
-                            order_time=escape_markdown(order.time, version=2),
+                            order_time=escape_markdown(
+                                f"{order.earliest_pickup_time} - {order.latest_pickup_time}", version=2
+                            ),
                             order_details=escape_markdown(order.details, version=2),
                             delivery_fee=escape_markdown(order.delivery_fee, version=2)
                         ),
@@ -544,7 +657,9 @@ async def handle_message(update: Update, context: CallbackContext):
                             order_id=escape_markdown(str(order_id), version=2),
                             order_text=escape_markdown(order.order_text, version=2),
                             order_location=escape_markdown(order.location, version=2),
-                            order_time=escape_markdown(order.time, version=2),
+                            order_time=escape_markdown(
+                                f"{order.earliest_pickup_time} - {order.latest_pickup_time}", version=2
+                            ),
                             order_details=escape_markdown(order.details, version=2),
                             delivery_fee=escape_markdown(order.delivery_fee, version=2),
                             orderer_handle=escape_markdown(order.user_handle, version=2) if order.user_handle else "Unknown"
@@ -562,7 +677,9 @@ async def handle_message(update: Update, context: CallbackContext):
                                     order_id=escape_markdown(str(order_id), version=2),  # ✅ Escape input correctly
                                     order_text=escape_markdown(order.order_text, version=2),
                                     order_location=escape_markdown(order.location, version=2),
-                                    order_time=escape_markdown(order.time, version=2),
+                                    order_time=escape_markdown(
+                                        f"{order.earliest_pickup_time} - {order.latest_pickup_time}", version=2
+                                    ),
                                     order_details=escape_markdown(order.details, version=2),
                                     delivery_fee=escape_markdown(order.delivery_fee, version=2),
                                     claimed_by=escape_markdown(claimed_by, version=2),
@@ -585,7 +702,9 @@ async def handle_message(update: Update, context: CallbackContext):
                             order_id=escape_markdown(str(order_id), version=2),
                             order_text=escape_markdown(order.order_text, version=2),
                             order_location=escape_markdown(order.location, version=2),
-                            order_time=escape_markdown(order.time, version=2),
+                            order_time=escape_markdown(
+                                f"{order.earliest_pickup_time} - {order.latest_pickup_time}", version=2
+                            ),
                             order_details=escape_markdown(order.details, version=2),
                             delivery_fee=escape_markdown(order.delivery_fee, version=2)
                         ),
@@ -931,7 +1050,8 @@ async def handle_button(update: Update, context: CallbackContext):
         new_order = Order(
             order_text=user_orders[user_id]['meal'], 
             location=user_orders[user_id]['location'],
-            time=user_orders[user_id]['time'],
+            earliest_pickup_time=user_orders[user_id]['earliest_dt'],
+            latest_pickup_time=user_orders[user_id]['latest_dt'],
             details=user_orders[user_id]['details'],
             delivery_fee=user_orders[user_id]['delivery_fee'],
             user_id=user_id, 
@@ -952,7 +1072,9 @@ async def handle_button(update: Update, context: CallbackContext):
                 order_id=escape_markdown(str(new_order.id), version=2),
                 order_text=escape_markdown(new_order.order_text, version=2),
                 order_location=escape_markdown(new_order.location, version=2),
-                order_time=escape_markdown(new_order.time, version=2),
+                order_time=escape_markdown(
+                    f"{new_order.earliest_pickup_time} - {new_order.latest_pickup_time}", version=2
+                ),
                 order_details=escape_markdown(new_order.details, version=2),
                 delivery_fee=escape_markdown(new_order.delivery_fee, version=2)
             ),
@@ -974,7 +1096,9 @@ async def handle_button(update: Update, context: CallbackContext):
                 order_id=escape_markdown(str(new_order.id), version=2),
                 order_text=escape_markdown(new_order.order_text, version=2),
                 order_location=escape_markdown(new_order.location, version=2),
-                order_time=escape_markdown(new_order.time, version=2),
+                order_time=escape_markdown(
+                    f"{new_order.earliest_pickup_time} - {new_order.latest_pickup_time}", version=2
+                ),
                 order_details=escape_markdown(new_order.details, version=2),
                 delivery_fee=escape_markdown(new_order.delivery_fee, version=2)
             ),

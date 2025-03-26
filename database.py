@@ -29,17 +29,18 @@ class RunnerReview(Base):
     rating = Column(Float, nullable=False)  # Rating from 1 to 5
     comment = Column(String, nullable=True)
 
-SGT = pytz.timezone("Asia/Singapore")
-
 class Order(Base):
     __tablename__ = 'orders'
     id = Column(Integer, Sequence('order_id_seq'), primary_key=True)
     order_text = Column(String, nullable=False)
     location = Column(String, nullable=True)
     time = Column(String, nullable=True)
+    earliest_pickup_time = Column(DateTime, nullable=True)
+    latest_pickup_time = Column(DateTime, nullable=True)
     details = Column(String, nullable=True)
     delivery_fee = Column(String, nullable=True)
     claimed = Column(Boolean, default=False)
+    expired = Column(Boolean, default=False)
     user_id = Column(BigInteger, nullable=False)
     runner_id = Column(BigInteger, nullable=True)
     user_handle = Column(String, nullable=True)
