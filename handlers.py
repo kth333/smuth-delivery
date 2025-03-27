@@ -61,7 +61,12 @@ async def expire_old_orders(bot: Bot):
             )
         except Exception as e:
             logging.warning(f"Failed to notify user {order.user_id} about expired order: {e}")
-
+        bot_username = context.bot.username
+        keyboard = [
+            [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{new_order.id}")],
+            [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
         # Edit channel message
         if order.channel_message_id:
             try:
@@ -79,9 +84,10 @@ async def expire_old_orders(bot: Bot):
                         ),
                         order_details=escape_markdown(order.details, version=2),
                         delivery_fee=escape_markdown(order.delivery_fee, version=2),
-                        claim_status=escape_markdown("⌛ This order has expired and is no longer available.", version=2)
+                        claim_status=escape_markdown("Claim Status: ⌛ This order has expired and is no longer available.", version=2)
                     ),
-                    parse_mode="MarkdownV2"
+                    parse_mode="MarkdownV2",
+                    reply_markup=reply_markup
                 )
             except Exception as e:
                 logging.warning(f"Failed to edit expired message: {e}")
@@ -256,6 +262,7 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
                     )
                 except Exception as e:
                     print(f"Failed to notify orderer @{orderer_id}: {e}")
+            bot_username = context.bot.username
             keyboard = [
                 [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{order.id}")],
                 [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
@@ -275,7 +282,7 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
                     ),
                     order_details=escape_markdown(order.details, version=2),
                     delivery_fee=escape_markdown(order.delivery_fee, version=2),
-                    claim_status=escape_markdown("🛵 This order has been claimed.", version=2)
+                    claim_status=escape_markdown("Claim Status: 🛵 This order has been claimed.", version=2)
                 ),
                 parse_mode="MarkdownV2",
                 reply_markup=reply_markup
@@ -689,6 +696,7 @@ async def handle_message(update: Update, context: CallbackContext):
                             )
                         except Exception as e:
                             print(f"Failed to notify orderer @{orderer_id}: {e}")
+                    bot_username = context.bot.username
                     keyboard = [
                         [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{order.id}")],
                         [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
@@ -708,7 +716,7 @@ async def handle_message(update: Update, context: CallbackContext):
                             ),
                             order_details=escape_markdown(order.details, version=2),
                             delivery_fee=escape_markdown(order.delivery_fee, version=2),
-                            claim_status=escape_markdown("🛵 This order has been claimed.", version=2)
+                            claim_status=escape_markdown("Claim Status: 🛵 This order has been claimed.", version=2)
                         ),
                         parse_mode="MarkdownV2",
                         reply_markup=reply_markup
@@ -814,6 +822,7 @@ async def handle_message(update: Update, context: CallbackContext):
                             )
                         except Exception as e:
                             print(f"Failed to notify orderer @{orderer_id}: {e}")
+                    bot_username = context.bot.username
                     keyboard = [
                         [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{order.id}")],
                         [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
@@ -833,7 +842,7 @@ async def handle_message(update: Update, context: CallbackContext):
                             ),
                             order_details=escape_markdown(order.details, version=2),
                             delivery_fee=escape_markdown(order.delivery_fee, version=2),
-                            claim_status=escape_markdown("🛵 This order has been claimed.", version=2)
+                            claim_status=escape_markdown("Claim Status: 🛵 This order has been claimed.", version=2)
                         ),
                         parse_mode="MarkdownV2",
                         reply_markup=reply_markup
@@ -936,7 +945,8 @@ async def handle_message(update: Update, context: CallbackContext):
                         # Edit the original channel post to reflect availability again
                         bot_username = context.bot.username
                         keyboard = [
-                            [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{order_id}")]
+                            [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{order.id}")],
+                            [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
                         ]
                         reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -952,7 +962,7 @@ async def handle_message(update: Update, context: CallbackContext):
                             ),
                             order_details=escape_markdown(order.details, version=2),
                             delivery_fee=escape_markdown(order.delivery_fee, version=2),
-                            claim_status=escape_markdown("✅ This order is available to claim.", version=2)
+                            claim_status=escape_markdown("Claim Status: ✅ This order is available to claim.", version=2)
                         )
 
                         # Edit the message in the channel
@@ -1398,7 +1408,7 @@ async def handle_button(update: Update, context: CallbackContext):
                 ),
                 order_details=escape_markdown(new_order.details, version=2),
                 delivery_fee=escape_markdown(new_order.delivery_fee, version=2),
-                claim_status=escape_markdown("✅ This order is available to claim.", version=2)
+                claim_status=escape_markdown("Claim Status: ✅ This order is available to claim.", version=2)
             ),
             parse_mode="MarkdownV2",
             reply_markup=reply_markup
