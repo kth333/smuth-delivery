@@ -49,8 +49,8 @@ ORDER_INSTRUCTIONS_DETAILS = (
 
 ORDER_INSTRUCTIONS_FEE = (
     "📝 *Placing an Order*\n\n"
-    "📌 Enter: The *delivery fee* you're offering to the runners:\n"
-    "✅ Example: *Offering $2 for delivery!*"
+    "📌 Enter: The *delivery fee* you're offering to the runners (only input a number):\n"
+    "✅ Example: *1.50*"
 )
 
 # Claim success notification
@@ -62,7 +62,7 @@ CLAIM_SUCCESS_MESSAGE = (
     "📍 *Location:* {order_location}\n"
     "⏳ *Date/Time:* {order_time}\n\n"
     "ℹ️ *Details:* {order_details}\n"
-    "💸 *Delivery Fee Offered:* {delivery_fee}\n\n" 
+    "💸 *Delivery Fee Offered:* ${delivery_fee}\n\n" 
     "🚀 *Next Steps:*\n"
     "1️⃣ Buy the meal from the vendor\.\n"
     "2️⃣ Confirm purchase via the bot\.\n"
@@ -79,7 +79,7 @@ ORDER_CLAIMED_NOTIFICATION = (
     "📍 *Location:* {order_location}\n"
     "⏳ *Date/Time:* {order_time}\n"
     "ℹ️ *Details:* {order_details}\n"
-    "💸 *Delivery Fee Offered:* {delivery_fee}\n\n" 
+    "💸 *Delivery Fee Offered:* ${delivery_fee}\n\n" 
     "🚴 Claimed by: {claimed_by}\n\n"
     "📍 *Stay tuned for updates on delivery\!*"
 )
@@ -106,7 +106,7 @@ ORDER_SUMMARY = """*Order Summary*:
 📍 *Location:* {order_location}
 ⏳ *Time:* {order_time}
 ℹ️ *Details:* {order_details}
-💸 *Delivery Fee:* {delivery_fee}
+💸 *Delivery Fee:* ${delivery_fee}
 
 Would you like to confirm this order?
 """
@@ -119,7 +119,7 @@ ORDER_PLACED = (
     "📍 *Location:* {order_location}\n"
     "⏳ *Date/Time:* {order_time}\n"
     "ℹ️ *Details:* {order_details}\n"
-    "💸 *Delivery Fee Offered:* {delivery_fee}\n\n" 
+    "💸 *Delivery Fee Offered:* ${delivery_fee}\n\n" 
     "⚡ Your order has been listed\! A food runner will claim it soon\."
 )
 
@@ -130,7 +130,7 @@ NEW_ORDER = (
     "📍 *Location:* {order_location}\n"
     "⏳ *Date/Time:* {order_time}\n"
     "ℹ️ *Details:* {order_details}\n"
-    "💸 *Delivery Fee Offered:* {delivery_fee}\n\n"
+    "💸 *Delivery Fee Offered:* ${delivery_fee}\n\n"
     "{claim_status}"
 )
 
@@ -140,7 +140,7 @@ NEW_CLAIM = (
     "📍 *Location:* {order_location}\n"
     "⏳ *Date/Time:* {order_time}\n"
     "ℹ️ *Details:* {order_details}\n"
-    "💸 *Delivery Fee Offered:* {delivery_fee}\n\n" 
+    "💸 *Delivery Fee Offered:* ${delivery_fee}\n\n" 
 )
 
 EDITED_ORDER = (
@@ -149,7 +149,7 @@ EDITED_ORDER = (
     "📍 *Location:* {order_location}\n"
     "⏳ *Date/Time:* {order_time}"
     "ℹ️ *Details:* {order_details}\n"
-    "💸 *Delivery Fee Offered:* {delivery_fee}\n\n" 
+    "💸 *Delivery Fee Offered:* ${delivery_fee}\n\n" 
 )
 
 # No available orders message
@@ -173,7 +173,7 @@ CLAIM_CONFIRMATION = (
     "📍 *Location:* {order_location}\n"
     "⏳ *Date/Time:* {order_time}\n"
     "ℹ️ *Details:* {order_details}\n"
-    "💸 *Delivery Fee Offered:* {delivery_fee}\n\n" 
+    "💸 *Delivery Fee Offered:* ${delivery_fee}\n\n" 
     "Please confirm by sending the *Order ID* again\.\n\n"
     "To cancel, press the *Back* button below\."
 )

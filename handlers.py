@@ -535,27 +535,34 @@ async def handle_message(update: Update, context: CallbackContext):
                 )
 
             elif state == 'awaiting_order_delivery_fee':
-                # User is typing fee
                 fee_text = update.message.text.strip()
-                
-                # Validate fee input
-                if not fee_text:
+
+                # 1. Check length
+                if len(fee_text) > 5:
                     await update.message.reply_text(
-                        messages.INVALID_ORDER_TEXT,  # Message for empty orders
+                        messages.ORDER_DETAILS_TOO_LONG.format(max_length=5, order_length=len(fee_text)),
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
                     return
 
-                # Validate fee length
-                if len(fee_text) > MAX_ORDER_LENGTH:
+                # 2. Validate it's a number (allow decimals) and at least 1.00
+                try:
+                    fee_amount = float(fee_text)
+                    if fee_amount < 1.0:
+                        await update.message.reply_text(
+                            "💸 Delivery fee must be at least *$1.00*. Please enter a higher amount.",
+                            parse_mode="Markdown",
+                            reply_markup=get_main_menu()
+                        )
+                        return
+                except ValueError:
                     await update.message.reply_text(
-                        messages.ORDER_DETAILS_TOO_LONG.format(max_length=MAX_ORDER_LENGTH, order_length=len(fee_text)),
+                        "❌ Please enter a *valid number* for the delivery fee. Example: `1.50`",
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
                     return
-
                 # Store fee in temporary state
                 user_orders[user_id]['delivery_fee'] = fee_text
                 user_states[user_id]['state'] = 'awaiting_order_confirmation'
