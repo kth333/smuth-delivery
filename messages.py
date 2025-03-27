@@ -125,12 +125,13 @@ ORDER_PLACED = (
 
 # New order notification in channel
 NEW_ORDER = (
-    "📢 New Order Available\n\n📌 Order ID: {order_id}\n"
+    "📢 New Order Available\n\n📌 Order ID: {order_id}\n\n"
     "🍽 *Meal:* {order_text}\n"
     "📍 *Location:* {order_location}\n"
     "⏳ *Date/Time:* {order_time}\n"
     "ℹ️ *Details:* {order_details}\n"
-    "💸 *Delivery Fee Offered:* {delivery_fee}\n\n" 
+    "💸 *Delivery Fee Offered:* {delivery_fee}\n\n"
+    "{claim_status}"
 )
 
 NEW_CLAIM = (

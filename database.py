@@ -47,6 +47,7 @@ class Order(Base):
     runner_handle = Column(String, nullable=True)
     order_placed_time = Column(DateTime, default=lambda: datetime.now(SGT))  
     order_claimed_time = Column(DateTime, nullable=True)
+    channel_message_id = Column(Integer, nullable=True)
 
 # Create all tables in the database
 def create_tables():
