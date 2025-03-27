@@ -5,6 +5,7 @@ from handlers import handle_message, start, handle_order, view_orders, handle_cl
 from database import *
 from apscheduler.schedulers.background import BackgroundScheduler
 from telegram import Bot
+import asyncio
 
 # Load environment variables
 load_dotenv()
@@ -30,7 +31,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_button))
 
     scheduler = BackgroundScheduler()
-    scheduler.add_job(lambda: expire_old_orders(bot), 'interval', minutes=30)
+    scheduler.add_job(lambda: asyncio.run(expire_old_orders(bot)), 'interval', minutes=5)
     scheduler.start()
 
     # Start polling

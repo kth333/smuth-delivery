@@ -37,7 +37,9 @@ def validate_strict_time_format(user_input: str) -> datetime | None:
     except Exception:
         return None
 
-def expire_old_orders(bot: Bot):
+from telegram.helpers import escape_markdown
+
+async def expire_old_orders(bot: Bot):
     now = datetime.now(SGT)
     session = session_local()
 
@@ -50,6 +52,7 @@ def expire_old_orders(bot: Bot):
         order.expired = True
         logging.info(f"[EXPIRED] Order ID {order.id} marked as expired")
 
+        # Notify user privately
         try:
             bot.send_message(
                 chat_id=order.user_id,
@@ -58,6 +61,30 @@ def expire_old_orders(bot: Bot):
             )
         except Exception as e:
             logging.warning(f"Failed to notify user {order.user_id} about expired order: {e}")
+
+        # Edit channel message
+        if order.channel_message_id:
+            try:
+                await bot.edit_message_text(
+                    chat_id=CHANNEL_ID,
+                    message_id=order.channel_message_id,
+                    text=messages.NEW_ORDER.format(
+                        order_id=escape_markdown(str(order.id), version=2),
+                        order_text=escape_markdown(order.order_text, version=2),
+                        order_location=escape_markdown(order.location, version=2),
+                        order_time=escape_markdown(
+                            f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                            f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
+                            version=2
+                        ),
+                        order_details=escape_markdown(order.details, version=2),
+                        delivery_fee=escape_markdown(order.delivery_fee, version=2),
+                        claim_status=escape_markdown("⌛ This order has expired and is no longer available.", version=2)
+                    ),
+                    parse_mode="MarkdownV2"
+                )
+            except Exception as e:
+                logging.warning(f"Failed to edit expired message: {e}")
 
     session.commit()
     session.close()
@@ -1025,23 +1052,42 @@ async def handle_message(update: Update, context: CallbackContext):
                 session = session_local()
                 order = session.query(Order).filter_by(id=order_id).first()
 
-                if user_message.lower() == 'yes':
+                if user_message.lower() == 'yes' and order:
+                    channel_message_id = order.channel_message_id
+
+                    # Escape Order ID before deleting the order
+                    escaped_order_id = escape_markdown(str(order.id), version=2)
+
                     session.delete(order)
                     session.commit()
 
                     await update.message.reply_text(
-                        "Your Order has been successfully deleted",
+                        "✅ Your order has been successfully deleted",
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
+
+                    if channel_message_id:
+                        try:
+                            cancel_msg = f"📌 *Order ID:* {escaped_order_id}\n🗑 *This order has been cancelled by the user.*"
+                            await context.bot.edit_message_text(
+                                chat_id=CHANNEL_ID,
+                                message_id=channel_message_id,
+                                text=cancel_msg,
+                                parse_mode="MarkdownV2"
+                            )
+                        except Exception as e:
+                            print(f"Failed to edit deleted order message: {e}")
+
                 elif user_message.lower() == 'no':
                     await update.message.reply_text(
-                        "Failed to delete your order",
+                        "❌ Order deletion canceled",
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
-            
+
                 session.close()
+                del user_states[user_id]
 
     except Exception as e:
         print(f"[ERROR] Exception occurred: {e}")  # Log the actual error
