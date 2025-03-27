@@ -182,7 +182,7 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
 
         if order:
             if order.user_id == user_id:
-                await message.reply_text(
+                await update.message.reply_text(
                     "⚠️ You can't claim your own order.",
                     parse_mode="Markdown",
                     reply_markup=get_main_menu()
@@ -607,7 +607,7 @@ async def handle_message(update: Update, context: CallbackContext):
                         return
                     
                     if order.user_id == user_id:
-                        await message.reply_text(
+                        await update.message.reply_text(
                             "⚠️ You can't claim your own order.",
                             parse_mode="Markdown",
                             reply_markup=get_main_menu()
@@ -619,7 +619,7 @@ async def handle_message(update: Update, context: CallbackContext):
                     active_claims = session.query(Order).filter_by(runner_id=user_id, claimed=True, expired=False).count()
 
                     if active_claims >= 2:
-                        await message.reply_text(
+                        await update.message.reply_text(
                             "🚫 You have already claimed 2 active orders.\n\n"
                             "Please cancel one of your existing claims before claiming a new one.",
                             parse_mode="Markdown",
@@ -732,7 +732,7 @@ async def handle_message(update: Update, context: CallbackContext):
                         return
 
                     if order.user_id == user_id:
-                        await message.reply_text(
+                        await update.message.reply_text(
                             "⚠️ You can't claim your own order.",
                             parse_mode="Markdown",
                             reply_markup=get_main_menu()
@@ -744,7 +744,7 @@ async def handle_message(update: Update, context: CallbackContext):
                     active_claims = session.query(Order).filter_by(runner_id=user_id, claimed=True, expired=False).count()
 
                     if active_claims >= 2:
-                        await message.reply_text(
+                        await update.message.reply_text(
                             "🚫 You have already claimed 2 active orders.\n\n"
                             "Please cancel one of your existing claims before claiming a new one.",
                             parse_mode="Markdown",
