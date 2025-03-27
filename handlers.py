@@ -269,7 +269,7 @@ async def view_orders(update: Update, context: CallbackContext):
     orders = session.query(Order).filter(
         Order.claimed == False,
         Order.latest_pickup_time > now
-    ).all()
+    ).order_by(Order.earliest_pickup_time.asc()).all()
     session.close()
 
     if orders:
@@ -889,6 +889,22 @@ async def handle_message(update: Update, context: CallbackContext):
                             parse_mode="Markdown",
                             reply_markup=get_main_menu()
                         )
+                        # Notify channel that order is now available again
+                        bot_username = context.bot.username
+                        keyboard = [
+                            [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{order_id}")]
+                        ]
+                        reply_markup = InlineKeyboardMarkup(keyboard)
+
+                        await context.bot.send_message(
+                            chat_id=CHANNEL_ID,
+                            text=(
+                                f"🔄 *Order ID {order_id}* claim was cancelled. It is now available again."
+                            ),
+                            parse_mode="Markdown",
+                            reply_markup=reply_markup
+                        )
+
                     else:
                         await update.message.reply_text(
                             "❌ Could not find a valid claimed order to cancel.",
