@@ -155,6 +155,14 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
         order = session.query(Order).filter_by(id=order_id, claimed=False).first()
 
         if order:
+            if order.user_id == user_id:
+                await message.reply_text(
+                    "⚠️ You can't claim your own order.",
+                    parse_mode="Markdown",
+                    reply_markup=get_main_menu()
+                )
+                session.close()
+                return
             order.claimed = True
             order.runner_id = user_id
             user_handle = update.message.from_user.username
@@ -547,6 +555,15 @@ async def handle_message(update: Update, context: CallbackContext):
                             reply_markup=get_main_menu()
                         )
                         return
+                    
+                    if order.user_id == user_id:
+                        await message.reply_text(
+                            "⚠️ You can't claim your own order.",
+                            parse_mode="Markdown",
+                            reply_markup=get_main_menu()
+                        )
+                        session.close()
+                        return
 
                     # Claim the order
                     order.claimed = True
@@ -650,6 +667,15 @@ async def handle_message(update: Update, context: CallbackContext):
                             parse_mode="Markdown",
                             reply_markup=get_main_menu()
                         )
+                        return
+                        
+                    if order.user_id == user_id:
+                        await message.reply_text(
+                            "⚠️ You can't claim your own order.",
+                            parse_mode="Markdown",
+                            reply_markup=get_main_menu()
+                        )
+                        session.close()
                         return
 
                     # Claim the order
