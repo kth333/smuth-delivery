@@ -94,8 +94,8 @@ async def start(update: Update, context: CallbackContext):
                 order_text=escape_markdown(order.order_text, version=2),
                 order_location=escape_markdown(order.location, version=2),
                 order_time=escape_markdown(
-                    f"{order.earliest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')} - "
-                    f"{order.latest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')}",
+                    f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                    f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
                     version=2
                 ),
                 order_details=escape_markdown(order.details, version=2),
@@ -193,8 +193,8 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
                     order_text=escape_markdown(order.order_text, version=2),
                     order_location=escape_markdown(order.location, version=2),
                     order_time=escape_markdown(
-                        f"{order.earliest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')} - "
-                        f"{order.latest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')}",
+                        f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                        f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
                         version=2
                     ),
                     order_details=escape_markdown(order.details, version=2),
@@ -217,8 +217,8 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
                             order_text=escape_markdown(order.order_text, version=2),
                             order_location=escape_markdown(order.location, version=2),
                             order_time=escape_markdown(
-                                f"{order.earliest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')} - "
-                                f"{order.latest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')}",
+                                f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                                f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
                                 version=2
                             ),
                             order_details=escape_markdown(order.details, version=2),
@@ -244,8 +244,8 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
                     order_text=escape_markdown(order.order_text, version=2),
                     order_location=escape_markdown(order.location, version=2),
                     order_time=escape_markdown(
-                        f"{order.earliest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')} - "
-                        f"{order.latest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')}",
+                        f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                        f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
                         version=2
                     ),
                     order_details=escape_markdown(order.details, version=2),
@@ -611,8 +611,8 @@ async def handle_message(update: Update, context: CallbackContext):
                             order_text=escape_markdown(order.order_text, version=2),
                             order_location=escape_markdown(order.location, version=2),
                             order_time=escape_markdown(
-                                f"{order.earliest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')} - "
-                                f"{order.latest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')}",
+                                f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                                f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
                                 version=2
                             ),
                             order_details=escape_markdown(order.details, version=2),
@@ -633,8 +633,8 @@ async def handle_message(update: Update, context: CallbackContext):
                                     order_text=escape_markdown(order.order_text, version=2),
                                     order_location=escape_markdown(order.location, version=2),
                                     order_time=escape_markdown(
-                                        f"{order.earliest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')} - "
-                                        f"{order.latest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')}",
+                                        f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                                        f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
                                         version=2
                                     ),
                                     order_details=escape_markdown(order.details, version=2),
@@ -660,8 +660,8 @@ async def handle_message(update: Update, context: CallbackContext):
                             order_text=escape_markdown(order.order_text, version=2),
                             order_location=escape_markdown(order.location, version=2),
                             order_time=escape_markdown(
-                                f"{order.earliest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')} - "
-                                f"{order.latest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')}",
+                                f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                                f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
                                 version=2
                             ),
                             order_details=escape_markdown(order.details, version=2),
@@ -737,8 +737,8 @@ async def handle_message(update: Update, context: CallbackContext):
                             order_text=escape_markdown(order.order_text, version=2),
                             order_location=escape_markdown(order.location, version=2),
                             order_time=escape_markdown(
-                                f"{order.earliest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')} - "
-                                f"{order.latest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')}",
+                                f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                                f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
                                 version=2
                             ),
                             order_details=escape_markdown(order.details, version=2),
@@ -759,8 +759,8 @@ async def handle_message(update: Update, context: CallbackContext):
                                     order_text=escape_markdown(order.order_text, version=2),
                                     order_location=escape_markdown(order.location, version=2),
                                     order_time=escape_markdown(
-                                        f"{order.earliest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')} - "
-                                        f"{order.latest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')}",
+                                        f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                                        f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
                                         version=2
                                     ),
                                     order_details=escape_markdown(order.details, version=2),
@@ -786,8 +786,8 @@ async def handle_message(update: Update, context: CallbackContext):
                             order_text=escape_markdown(order.order_text, version=2),
                             order_location=escape_markdown(order.location, version=2),
                             order_time=escape_markdown(
-                                f"{order.earliest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')} - "
-                                f"{order.latest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')}",
+                                f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                                f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
                                 version=2
                             ),
                             order_details=escape_markdown(order.details, version=2),
@@ -1270,8 +1270,8 @@ async def handle_button(update: Update, context: CallbackContext):
                 order_text=escape_markdown(new_order.order_text, version=2),
                 order_location=escape_markdown(new_order.location, version=2),
                 order_time=escape_markdown(
-                    f"{new_order.earliest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')} - "
-                    f"{new_order.latest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')}",
+                    f"{new_order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                    f"{new_order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
                     version=2
                 ),
                 order_details=escape_markdown(new_order.details, version=2),
@@ -1296,8 +1296,8 @@ async def handle_button(update: Update, context: CallbackContext):
                 order_text=escape_markdown(new_order.order_text, version=2),
                 order_location=escape_markdown(new_order.location, version=2),
                 order_time=escape_markdown(
-                    f"{new_order.earliest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')} - "
-                    f"{new_order.latest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')}",
+                    f"{new_order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                    f"{new_order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
                     version=2
                 ),
                 order_details=escape_markdown(new_order.details, version=2),
