@@ -42,7 +42,6 @@ def expire_old_orders(bot: Bot):
     session = session_local()
 
     expired_orders = session.query(Order).filter(
-        Order.claimed == False,
         Order.expired == False,
         Order.latest_pickup_time < now
     ).all()
@@ -163,6 +162,20 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
                 )
                 session.close()
                 return
+
+            # Check if user has already claimed 2 active orders
+            active_claims = session.query(Order).filter_by(runner_id=user_id, claimed=True, expired=False).count()
+
+            if active_claims >= 2:
+                await message.reply_text(
+                    "🚫 You have already claimed 2 active orders.\n\n"
+                    "Please cancel one of your existing claims before claiming a new one.",
+                    parse_mode="Markdown",
+                    reply_markup=get_main_menu()
+                )
+                session.close()
+                return
+
             order.claimed = True
             order.runner_id = user_id
             user_handle = update.message.from_user.username
@@ -565,6 +578,19 @@ async def handle_message(update: Update, context: CallbackContext):
                         session.close()
                         return
 
+                    # Check if user has already claimed 2 active orders
+                    active_claims = session.query(Order).filter_by(runner_id=user_id, claimed=True, expired=False).count()
+
+                    if active_claims >= 2:
+                        await message.reply_text(
+                            "🚫 You have already claimed 2 active orders.\n\n"
+                            "Please cancel one of your existing claims before claiming a new one.",
+                            parse_mode="Markdown",
+                            reply_markup=get_main_menu()
+                        )
+                        session.close()
+                        return
+
                     # Claim the order
                     order.claimed = True
                     order.runner_id = user_id
@@ -668,10 +694,23 @@ async def handle_message(update: Update, context: CallbackContext):
                             reply_markup=get_main_menu()
                         )
                         return
-                        
+
                     if order.user_id == user_id:
                         await message.reply_text(
                             "⚠️ You can't claim your own order.",
+                            parse_mode="Markdown",
+                            reply_markup=get_main_menu()
+                        )
+                        session.close()
+                        return
+
+                    # Check if user has already claimed 2 active orders
+                    active_claims = session.query(Order).filter_by(runner_id=user_id, claimed=True, expired=False).count()
+
+                    if active_claims >= 2:
+                        await message.reply_text(
+                            "🚫 You have already claimed 2 active orders.\n\n"
+                            "Please cancel one of your existing claims before claiming a new one.",
                             parse_mode="Markdown",
                             reply_markup=get_main_menu()
                         )
@@ -792,6 +831,79 @@ async def handle_message(update: Update, context: CallbackContext):
                         "❌ Invalid Order ID. Please enter a valid Order ID or type /cancel to exit.",
                         parse_mode="Markdown"
                     )
+            elif state == 'selecting_claimed_order':
+                try:
+                    order_id = int(update.message.text.strip())
+                    session = session_local()
+                    order = session.query(Order).filter_by(id=order_id, runner_id=user_id, claimed=True).first()
+
+                    if not order:
+                        await update.message.reply_text(
+                            "❌ Invalid or unclaimed Order ID. Please try again.",
+                            parse_mode="Markdown"
+                        )
+                        session.close()
+                        return
+
+                    user_states[user_id] = {'state': 'canceling_claim', 'selected_order': order_id}
+
+                    await update.message.reply_text(
+                        f"🛑 Are you sure you want to cancel your claim on *Order ID {order_id}*?\n"
+                        "Reply with *YES* to confirm or *NO* to abort.",
+                        parse_mode="Markdown"
+                    )
+                    session.close()
+                except ValueError:
+                    await update.message.reply_text(
+                        "❌ Please enter a valid Order ID.",
+                        parse_mode="Markdown"
+                    )
+            elif state == 'canceling_claim':
+                user_response = update.message.text.strip().lower()
+                order_id = user_states[user_id]['selected_order']
+
+                if user_response == "yes":
+                    session = session_local()
+                    order = session.query(Order).filter_by(id=order_id, runner_id=user_id, claimed=True).first()
+
+                    if order:
+                        now = datetime.now(SGT)
+                        if order.latest_pickup_time < now:
+                            await update.message.reply_text(
+                                "⏰ You can't cancel this claim because the pickup time has already passed.",
+                                parse_mode="Markdown",
+                                reply_markup=get_main_menu()
+                            )
+                            session.close()
+                            del user_states[user_id]
+                            return
+
+                        order.claimed = False
+                        order.runner_id = None
+                        order.runner_handle = None
+                        order.order_claimed_time = None
+                        session.commit()
+
+                        await update.message.reply_text(
+                            f"✅ You have canceled your claim on *Order ID {order_id}*.",
+                            parse_mode="Markdown",
+                            reply_markup=get_main_menu()
+                        )
+                    else:
+                        await update.message.reply_text(
+                            "❌ Could not find a valid claimed order to cancel.",
+                            parse_mode="Markdown",
+                            reply_markup=get_main_menu()
+                        )
+                    session.close()
+                else:
+                    await update.message.reply_text(
+                        "❌ Claim cancellation aborted.",
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+
+                del user_states[user_id]
             elif state == 'awaiting_payment_amount':
                 amount = update.message.text
                 if amount.isdigit():
@@ -1083,6 +1195,45 @@ async def delete_order(update: Update, context: CallbackContext):
         )
     session.close()
 
+async def handle_my_claims(update: Update, context: CallbackContext):
+    user_id = update.callback_query.from_user.id if update.callback_query else update.message.from_user.id
+    message = update.callback_query.message if update.callback_query else update.message
+
+    if update.callback_query:
+        await update.callback_query.answer()
+
+    session = session_local()
+    orders = session.query(Order).filter_by(runner_id=user_id, claimed=True, expired=False).all()
+    session.close()
+
+    if orders:
+        order_list = [
+            f"📌 *Order ID:* {escape_markdown(str(o.id), version=2)}\n"
+            f"🍽 *Meal:* {escape_markdown(o.order_text, version=2)}\n" for o in orders
+        ]
+
+        for i in range(0, len(order_list), 10):
+            chunk = "\n".join(order_list[i:i + 10])
+            await message.reply_text(
+                f"📦 *My Claims:*\n\n{chunk}",
+                parse_mode="MarkdownV2"
+            )
+    else:
+        await message.reply_text(
+            "⏳ You haven't claimed any orders yet.\n\nCheck /vieworders to see available ones.",
+            parse_mode="Markdown",
+            reply_markup=get_main_menu()
+        )
+
+    # Ask user to pick which claimed order to cancel
+    keyboard = [
+        [InlineKeyboardButton("Back", callback_data='start')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    user_states[user_id] = {'state': 'selecting_claimed_order'}
+    await message.reply_text("Please enter the Order ID you want to cancel claim for:", reply_markup=reply_markup)
+
 async def handle_button(update: Update, context: CallbackContext):
     """Handles button presses from InlineKeyboardMarkup."""
     query = update.callback_query
@@ -1178,6 +1329,7 @@ async def handle_button(update: Update, context: CallbackContext):
             'vieworders': view_orders,
             'claim': handle_claim,
             'myorders': handle_my_orders,
+            'myclaims': handle_my_claims,
             'help': help_command,
             'edit_order': edit_order,
             'delete_order': delete_order,
