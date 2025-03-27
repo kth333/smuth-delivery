@@ -273,15 +273,24 @@ async def view_orders(update: Update, context: CallbackContext):
     session.close()
 
     if orders:
-        order_list = [
+
+        order_list = []
+        for o in orders:
+            time_str = (
+                f"{o.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                f"{o.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}"
+            )
+
+        order_text = (
             f"📌 *Order ID:* {escape_markdown(str(o.id), version=2)}\n"
             f"🍽 *Meal:* {escape_markdown(o.order_text, version=2)}\n"
             f"📍 *Location:* {escape_markdown(o.location, version=2)}\n"
-            f"⏳ *Time:* {escape_markdown(o.time, version=2)}\n"
+            f"⏳ *Time:* {escape_markdown(time_str, version=2)}\n"
             f"ℹ️ *Details:* {escape_markdown(o.details, version=2)}\n"
             f"💸 *Delivery Fee:* {escape_markdown(o.delivery_fee, version=2)}\n"
-            for o in orders
-        ]
+        )
+        
+        order_list.append(order_text)
 
         for i in range(0, len(order_list), 10):  # Send 10 orders per message
             chunk = "\n".join(order_list[i:i + 10])
@@ -529,7 +538,9 @@ async def handle_message(update: Update, context: CallbackContext):
                     order_text=escape_markdown(user_orders[user_id]['meal'], version=2),
                     order_location=escape_markdown(user_orders[user_id]['location'], version=2),
                     order_time=escape_markdown(
-                        f"{user_orders[user_id]['earliest_input']} - {user_orders[user_id]['latest_input']}", version=2
+                        f"{user_orders[user_id]['earliest_dt'].astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                        f"{user_orders[user_id]['latest_dt'].astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
+                        version=2
                     ),
                     order_details=escape_markdown(user_orders[user_id]['details'], version=2),
                     delivery_fee=escape_markdown(user_orders[user_id]['delivery_fee'], version=2)
