@@ -566,13 +566,15 @@ async def handle_message(update: Update, context: CallbackContext):
             elif state == 'awaiting_payment_confirmation':
                 # Handle the final confirmation for payment
                 user_message = update.message.text
+                order_id = user_states.get(user_id)['selected_order']
+                
                 if user_message.lower() == "yes":
                     await update.message.reply_text(
                         "💳 Your payment is being processed. Thank you for your order!",
                         parse_mode="Markdown"
                     )
                     amount = user_states.get(user_id)['amount']
-                    await send_payment_link(update, context, amount)
+                    await send_payment_link(update, context, amount, order_id)
                     del user_states[user_id]  # Clear user state after confirmation
                 elif user_message.lower() == "cancel":
                     await update.message.reply_text(
@@ -813,7 +815,7 @@ async def handle_payment(update: Update, context: CallbackContext):
             f"📌 *Order ID:* {o.id}\n🍽 *Meal:* {o.order_text}\n" for o in orders
         ]
         
-        user_states[user_id] = {'state': 'awaiting_payment_amount'}
+        user_states[user_id]['state'] = 'awaiting_payment_amount'
         await message.reply_text("Please enter your payment amount (SGD)")
         
     else:

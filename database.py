@@ -40,7 +40,7 @@ class Order(Base):
     user_handle = Column(String, nullable=True)
     runner_handle = Column(String, nullable=True)
     completed = Column(Boolean, nullable=False, default=False)
-    # payment_amount = Column(Float, nullable=True)
+    payment_amount = Column(Float, nullable=True)
     
 class StripeAccount(Base):
     __tablename__ = 'stripe_accounts'

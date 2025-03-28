@@ -8,8 +8,6 @@ from database import *
 
 load_dotenv()
 
-app = Flask(__name__)
-
 user_states = {}
 
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY')

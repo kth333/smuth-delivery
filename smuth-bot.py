@@ -1,16 +1,66 @@
 import os
+import json
+import stripe
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from dotenv import load_dotenv
 from handlers import handle_message, start, handle_order, view_orders, handle_claim, help_command, handle_button, handle_my_orders
 from database import *
+from payment import handle_payment_intent_succeeded
+from flask import Flask, request, jsonify
+import threading
+
+flask_app = Flask(__name__)
 
 # Load environment variables
 load_dotenv()
 
 # Load the bot token
 TOKEN = os.getenv('TELEGRAM_TOKEN')
+endpoint_secret = os.getenv('WEBHOOK_SECRET')
+stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
 
-def main():
+@flask_app.route('/', methods=['GET', 'POST'])
+def index():
+    print("hello")
+    return "Welcome to the Smuth Delivery bot!"
+
+@flask_app.route('/webhook', methods=['POST', 'GET'])
+def webhook():
+    event = None
+    payload = request.get_data(as_text=True)
+    
+    try:
+        event = json.loads(payload)
+    except json.decoder.JSONDecodeError as e:
+        print('⚠️  Webhook error while parsing basic request.' + str(e))
+        return jsonify(success=False)
+    if endpoint_secret:
+        # Only verify the event if there is an endpoint secret defined
+        # Otherwise use the basic event deserialized with json
+        sig_header = request.headers.get('stripe-signature')
+        try:
+            event = stripe.Webhook.construct_event(
+                payload, sig_header, endpoint_secret
+            )
+        except stripe.error.SignatureVerificationError as e:
+            print('⚠️  Webhook signature verification failed.' + str(e))
+            return jsonify(success=False)
+    
+    if event and event['type'] == 'payment_intent.succeeded':
+        payment_intent = event['data']['object']  # contains a stripe.PaymentIntent
+        order_id = payment_intent['metadata']['order_id']
+        print('Payment for {} succeeded'.format(payment_intent['amount']))
+        handle_payment_intent_succeeded(payment_intent, order_id)
+    else:
+        # Unexpected event type
+        print('Unhandled event type {}'.format(event['type']))
+
+    return jsonify(success=True)
+
+def start_flask():
+    flask_app.run(host='0.0.0.0', port=5001, use_reloader=False, debug=True)  # Run Flask on a different port (e.g., 5001)
+
+def start_telegram_bot():
     app = Application.builder().token(TOKEN).build()
 
     # Command Handlers
@@ -27,6 +77,11 @@ def main():
 
     # Start polling
     app.run_polling()
+    
+def main():
+    # Run Flask and Telegram bot in separate threads to avoid blocking each other
+    threading.Thread(target=start_flask, daemon=True).start()
+    start_telegram_bot()
 
 if __name__ == '__main__':
     main()
