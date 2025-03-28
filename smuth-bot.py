@@ -24,7 +24,6 @@ stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
 
 @flask_app.route('/', methods=['GET', 'POST'])
 def index():
-    print("hello")
     return "Welcome to the Smuth Delivery bot!"
 
 @flask_app.route('/webhook', methods=['POST', 'GET'])

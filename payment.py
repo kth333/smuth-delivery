@@ -10,11 +10,7 @@ import messages
 
 load_dotenv()
 
-app = Flask(__name__)
-
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
-
-endpoint_secret = os.getenv('WEBHOOK_SECRET')
 
 def create_checkout_session(amount: int, currency: str, user_id, order_id): 
     success_url = f"https://t.me/smuth_delivery?start=payment_success_{user_id}"  # Unique for the user

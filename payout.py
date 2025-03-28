@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 import stripe 
+import requests
 from flask import Flask, request
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler
@@ -11,6 +12,7 @@ load_dotenv()
 user_states = {}
 
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_TOKEN')
 
 async def create_stripe_account(user_email):
     try:
@@ -36,13 +38,21 @@ async def create_stripe_account(user_email):
 
 async def create_account_link(stripe_account_id):
     try:
+        # Retrieve account details for debugging
+        account = stripe.Account.retrieve(stripe_account_id)
+        print("Account Details:")
+        print(f"ID: {account['id']}")
+        print(f"Requirements: {account['requirements']}")
+        print(f"Capabilities: {account['capabilities']}")
+        
         # Create an account link for Standard account onboarding
         account_link = stripe.AccountLink.create(
-            account=stripe_account_id,
-            refresh_url="https://example.com/success",  # URL to retry onboarding
-            return_url="https://t.me/smuth_delivery",  # URL to redirect to after completing onboarding
-            type="account_onboarding",  # Specify that this link is for onboarding
+            account='acct_1R7aEeP3nOZUUnhI',
+            refresh_url="https://example.com/refresh",  # URL to retry onboarding
+            return_url="https://example.com/return",  # URL to redirect to after completing onboarding
+            type="account_onboarding",# Specify that this link is for onboarding
         )
+        print("Generated Account Link:", account_link.url)
         return account_link.url
     except stripe.error.StripeError as e:
         print(f"Error creating account link: {e}")
@@ -65,7 +75,7 @@ async def get_email(update, context):
         if account:
             account_link = await create_account_link(account['id'])
             if account_link: 
-                await update.message.reply_text(f"Account created successfully. Please complete your onboarding here: {account_link}")
+                send_telegram_message(f"Here is your Stripe onboarding link: {account_link}", user_id)
                 
                 newStripeAccount = StripeAccount(
                     telegram_id = user_id,
@@ -73,7 +83,7 @@ async def get_email(update, context):
                 )
                 
                 session = session_local()
-                session.add(newStripeAccount)
+                # session.add(newStripeAccount)
                 session.commit()
                 
             else:
@@ -110,3 +120,16 @@ async def transfer_to_user(stripe_account_id, amount_in_cents):
         print(f"Error transferring funds: {e}")
         return None
         
+def send_telegram_message(message, user_id):
+    """Send a message to the specified Telegram chat."""
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": user_id,
+        "text": message,
+        "disable_web_page_preview": True,
+    }
+    response = requests.post(url, json=payload)
+    if response.status_code == 200:
+        print("Message sent successfully.")
+    else:
+        print(f"Failed to send message. Status code: {response.status_code}, Response: {response.text}")
