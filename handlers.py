@@ -48,22 +48,23 @@ async def expire_old_orders(bot: Bot):
         Order.latest_pickup_time < now
     ).all()
 
+    bot_username = (await bot.get_me()).username
+
     for order in expired_orders:
         order.expired = True
         logging.info(f"[EXPIRED] Order ID {order.id} marked as expired")
 
         # Notify user privately
         try:
-            bot.send_message(
+            await bot.send_message(
                 chat_id=order.user_id,
                 text=f"Sorry, we couldn't find you a runner for *Order ID {order.id}*.",
                 parse_mode="Markdown"
             )
         except Exception as e:
             logging.warning(f"Failed to notify user {order.user_id} about expired order: {e}")
-        bot_username = context.bot.username
         keyboard = [
-            [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{new_order.id}")],
+            [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{order.id}")],
             [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
