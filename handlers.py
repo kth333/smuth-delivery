@@ -45,6 +45,7 @@ async def expire_old_orders(bot: Bot):
 
     expired_orders = session.query(Order).filter(
         Order.expired == False,
+        Order.claimed == False,
         Order.latest_pickup_time < now
     ).all()
 
