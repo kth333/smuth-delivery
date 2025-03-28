@@ -1075,11 +1075,11 @@ async def handle_message(update: Update, context: CallbackContext):
                     # Escape Order ID before deleting the order
                     escaped_order_id = escape_markdown(str(order.id), version=2)
 
-                    session.delete(order)
+                    order.expired = True
                     session.commit()
 
                     await update.message.reply_text(
-                        "✅ Your order has been successfully deleted",
+                        "✅ Your order has been successfully canceled",
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
@@ -1091,7 +1091,7 @@ async def handle_message(update: Update, context: CallbackContext):
                     reply_markup = InlineKeyboardMarkup(keyboard)
                     if channel_message_id:
                         try:
-                            cancel_msg = f"📌 *Order ID:* {escaped_order_id}\n🗑 *This order has been cancelled by the user.*"
+                            cancel_msg = f"📌 *Order ID:* {escaped_order_id}\n🗑 *This order has been canceled by the user\.*"
                             await context.bot.edit_message_text(
                                 chat_id=CHANNEL_ID,
                                 message_id=channel_message_id,
