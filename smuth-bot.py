@@ -1,6 +1,7 @@
 import os
 import json
 import stripe
+import asyncio
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from dotenv import load_dotenv
 from handlers import handle_message, start, handle_order, view_orders, handle_claim, help_command, handle_button, handle_my_orders
@@ -10,6 +11,8 @@ from flask import Flask, request, jsonify
 import threading
 
 flask_app = Flask(__name__)
+
+telegram_bot = None
 
 # Load environment variables
 load_dotenv()
@@ -26,6 +29,7 @@ def index():
 
 @flask_app.route('/webhook', methods=['POST', 'GET'])
 def webhook():
+    global telegram_bot
     event = None
     payload = request.get_data(as_text=True)
     
@@ -50,7 +54,7 @@ def webhook():
         payment_intent = event['data']['object']  # contains a stripe.PaymentIntent
         order_id = payment_intent['metadata']['order_id']
         print('Payment for {} succeeded'.format(payment_intent['amount']))
-        handle_payment_intent_succeeded(payment_intent, order_id)
+        asyncio.run(handle_payment_intent_succeeded(payment_intent, order_id, telegram_bot))
     else:
         # Unexpected event type
         print('Unhandled event type {}'.format(event['type']))
@@ -61,7 +65,9 @@ def start_flask():
     flask_app.run(host='0.0.0.0', port=5001, use_reloader=False, debug=True)  # Run Flask on a different port (e.g., 5001)
 
 def start_telegram_bot():
+    global telegram_bot
     app = Application.builder().token(TOKEN).build()
+    telegram_bot = app.bot
 
     # Command Handlers
     app.add_handler(CommandHandler("start", start))

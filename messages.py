@@ -153,3 +153,9 @@ CLAIM_CONFIRMATION = (
     "✅ You are about to claim *Order {order_id}*.\n\n"
     "Please confirm by sending the order ID again."
 )
+
+SUCCESSFUL_PAYMENT_NOTIFICATION = (
+    "✅ *Payment for Order ID {order_id} was successful!*\n\n"
+    "💰 *Amount Paid:* ${amount}\n\n"
+    "Thank you for using Smuth Delivery Bot!"
+)

@@ -6,6 +6,7 @@ from flask import Flask, request, jsonify
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from database import *
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+import messages
 
 load_dotenv()
 
@@ -86,12 +87,52 @@ def validate_and_convert_amount(amount: str) -> (bool, int):
     
     return False, -1
 
-def handle_payment_intent_succeeded(payment_intent, order_id):
-    print("handling successful payment")
+async def handle_payment_intent_succeeded(payment_intent, order_id, telegram_bot):
+    amount = Decimal(payment_intent['amount'] / 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    print(f"Payment for Order ID {order_id} succeeded. Amount: {amount}")
+    
+    
     session = session_local()
     order = session.query(Order).filter_by(id=order_id).first()
-    order.payment_amount = payment_intent['amount']
+    
+    order.payment_amount = amount
+    runner_id = order.runner_id
+    orderer_id = order.user_id
     session.commit()
     session.close()
     
+    await notify_successful_payment(order_id, orderer_id, runner_id, amount, telegram_bot)
     
+    
+async def notify_successful_payment(order_id, orderer_id, runner_id, amount, telegram_bot):
+    # Notify the orderer about the successful payment
+    if orderer_id: 
+        try:
+            await telegram_bot.send_message(
+                chat_id=orderer_id,
+                text=messages.SUCCESSFUL_PAYMENT_NOTIFICATION.format(
+                    order_id=order_id,
+                    amount=amount
+                ),
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            print(f"Failed to notify orderer @{orderer_id}: {e}")
+    else:
+        print(f"Orderer ID not found for Order ID {order_id}. Cannot notify.")
+
+    # Notify the runner about the successful payment
+    if runner_id:
+        try:
+            await telegram_bot.send_message(
+                chat_id=runner_id,
+                text=messages.SUCCESSFUL_PAYMENT_NOTIFICATION.format(
+                    order_id=order_id,
+                    amount=amount
+                ),
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            print(f"Failed to notify runner @{runner_id}: {e}")
+    else:
+        print(f"Runner ID not found for Order ID {order_id}. Cannot notify.")
