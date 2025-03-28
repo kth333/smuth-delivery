@@ -1083,7 +1083,12 @@ async def handle_message(update: Update, context: CallbackContext):
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
-
+                    bot_username = context.bot.username
+                    keyboard = [
+                        [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{order.id}")],
+                        [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+                    ]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
                     if channel_message_id:
                         try:
                             cancel_msg = f"📌 *Order ID:* {escaped_order_id}\n🗑 *This order has been cancelled by the user.*"
@@ -1091,7 +1096,8 @@ async def handle_message(update: Update, context: CallbackContext):
                                 chat_id=CHANNEL_ID,
                                 message_id=channel_message_id,
                                 text=cancel_msg,
-                                parse_mode="MarkdownV2"
+                                parse_mode="MarkdownV2",
+                                reply_markup=reply_markup
                             )
                         except Exception as e:
                             print(f"Failed to edit deleted order message: {e}")
