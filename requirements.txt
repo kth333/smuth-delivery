@@ -5,3 +5,4 @@ sqlalchemy==2.0.38
 psycopg2-binary==2.9.10
 stripe==11.5.0
 flask==3.1.0
+gunicorn==23.0.0

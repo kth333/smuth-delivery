@@ -1,25 +1,18 @@
 import os
-import json
 import stripe
 import asyncio
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from dotenv import load_dotenv
-from handlers import handle_message, start, handle_order, view_orders, handle_claim, help_command, handle_button, handle_my_orders
-from database import *
+from flask import Flask, request, jsonify
 from payment import handle_payment_intent_succeeded
 from payout import update_onboarding_status
-from flask import Flask, request, jsonify
-import threading
-
-flask_app = Flask(__name__)
-
-telegram_bot = None
+from smuth_bot import telegram_bot
 
 # Load environment variables
 load_dotenv()
 
-# Load the bot token
-TOKEN = os.getenv('TELEGRAM_TOKEN')
+# Initialize Flask app
+flask_app = Flask(__name__)
+
 endpoint_secret_payment = os.getenv('WEBHOOK_SECRET_PAYMENT')
 endpoint_secret_payout = os.getenv('WEBHOOK_SECRET_PAYOUT')
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
@@ -30,8 +23,6 @@ def index():
 
 @flask_app.route('/webhook', methods=['POST', 'GET'])
 def webhook():
-    global telegram_bot
-    
     event = None
     payload = request.get_data(as_text=True)
     sig_header = request.headers.get('stripe-signature')
@@ -72,33 +63,6 @@ def webhook():
 
     return jsonify(success=True)
 
-def start_flask():
-    flask_app.run(host='0.0.0.0', port=5001, use_reloader=False, debug=True)  # Run Flask on a different port (e.g., 5001)
-
-def start_telegram_bot():
-    global telegram_bot
-    app = Application.builder().token(TOKEN).build()
-    telegram_bot = app.bot
-
-    # Command Handlers
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("order", handle_order))
-    app.add_handler(CommandHandler("vieworders", view_orders))
-    app.add_handler(CommandHandler("claim", handle_claim))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("myorders", handle_my_orders))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    # Callback Query Handler (buttons)
-    app.add_handler(CallbackQueryHandler(handle_button))
-
-    # Start polling
-    app.run_polling()
-    
-def main():
-    # Run Flask and Telegram bot in separate threads to avoid blocking each other
-    threading.Thread(target=start_flask, daemon=True).start()
-    start_telegram_bot()
-
 if __name__ == '__main__':
-    main()
+    # Start Flask app
+    flask_app.run(host='0.0.0.0', port=5001, debug=True)
