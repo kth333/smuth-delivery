@@ -2,9 +2,10 @@ from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import CallbackContext
 from telegram.helpers import escape_markdown
 from database import Order, session_local  # Importing Order model and session to interact with the database
-from utils import get_main_menu  # Importing the helper function for generating the keyboard
+from utils import get_main_menu, get_my_orders_menu  # Importing the helper function for generating the keyboard
 import messages  # Importing the messages from messages.py
 from payment import *
+from payout import *
 import os
 from datetime import datetime
 import pytz
@@ -70,6 +71,11 @@ async def handle_order(update: Update, context: CallbackContext):
 
 async def handle_claim(update: Update, context: CallbackContext):
     """Handles the /claim command and allows the user to claim an order."""
+    need_stripe_setup = await check_for_stripe_account(update, context)
+    
+    if need_stripe_setup:
+        return
+    
     user_id = update.effective_user.id
     message = update.message if update.message else update.callback_query.message
 
@@ -607,22 +613,15 @@ async def handle_message(update: Update, context: CallbackContext):
                 order = session.query(Order).filter_by(id=user_message, user_id=user_id).first()
                 session.close()
             
-                keyboard = [
-                    [InlineKeyboardButton("Delete Order", callback_data='delete_order')],
-                    [InlineKeyboardButton("Report Runner", callback_data='report_user')],
-                    [InlineKeyboardButton("Back", callback_data='start')]
-                ]
-            
-                reply_markup = InlineKeyboardMarkup(keyboard)
                 if order: 
+                    user_states[user_id] = {'selected_order': order.id}  # Store selected order ID
+                    
                     await update.message.reply_text(
                         f"✅ *Order Selected:* {escape_markdown(order.order_text, version=2)}\n\n"
                         "Please choose an option:",
-                        parse_mode="MarkdownV2",
-                        reply_markup=reply_markup
-                    )
-                
-                    user_states[user_id] = {'selected_order': order.id}  # Store selected order ID
+                        parse_mode="Markdown",
+                        reply_markup=get_my_orders_menu()
+                        )
                 else: 
                     await update.message.reply_text(
                         "❌ Invalid Order ID. Please enter a valid Order ID or type /cancel to exit.",
@@ -630,14 +629,20 @@ async def handle_message(update: Update, context: CallbackContext):
                     )
             elif state == 'awaiting_payment_amount':
                 amount = update.message.text
-                if amount.isdigit():
+                
+                valid, amount_cents = validate_and_convert_amount(amount)
+                
+                if valid:
+                    amount_dollars = Decimal(amount_cents) / Decimal('100')
+                    
+                    user_states[user_id]['state'] = 'awaiting_payment_confirmation'
+                    user_states[user_id]['amount'] = amount_cents
+                    
                     await update.message.reply_text(
-                        f"💳 *Would you like to proceed with payment?*\n"
+                        f"💳 You entered *SGD{amount_dollars:.2f}*. Would you like to proceed with payment?\n"
                         "Reply with *YES* to continue or *CANCEL* to abort.",
                         parse_mode="Markdown"
                     )
-                    user_states[user_id]['state'] = 'awaiting_payment_confirmation'
-                    user_states[user_id]['amount'] = amount
                 else:
                     await update.message.reply_text(
                         "❌ Please enter a valid number",
@@ -646,25 +651,29 @@ async def handle_message(update: Update, context: CallbackContext):
             elif state == 'awaiting_payment_confirmation':
                 # Handle the final confirmation for payment
                 user_message = update.message.text
+                order_id = user_states.get(user_id)['selected_order']
+                
                 if user_message.lower() == "yes":
                     await update.message.reply_text(
                         "💳 Your payment is being processed. Thank you for your order!",
                         parse_mode="Markdown"
                     )
                     amount = user_states.get(user_id)['amount']
-                    await send_payment_link(update, context, amount)
+                    await send_payment_link(update, context, amount, order_id)
                     del user_states[user_id]  # Clear user state after confirmation
                 elif user_message.lower() == "cancel":
                     await update.message.reply_text(
-                        "❌ Payment has been canceled.",
-                        parse_mode="Markdown"
+                        f"❌ Payment has been canceled.\n"
+                        "Returning to main menu...",
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
                     )
                     del user_states[user_id]  # Clear user data after cancelation
                 else:
                     await update.message.reply_text(
                         "❌ Invalid response. Please reply with *YES* to confirm payment or *CANCEL* to abort.",
                         parse_mode="Markdown"
-                   )
+                    )
             elif state == 'editing_order':
              
                 new_order_text = update.message.text
@@ -722,7 +731,7 @@ async def handle_message(update: Update, context: CallbackContext):
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
-            
+                    
                 session.close()
             
             elif state == 'reporting_user':
@@ -739,7 +748,7 @@ async def handle_message(update: Update, context: CallbackContext):
                     await update.message.reply_text(
                         f"Your order has no runner.\n"
                         "Returning to the main menu.",
-                        parse_mode="Markdown",
+                        parse_mode="Makrdown",
                         reply_markup=get_main_menu()
                     )
                 else:
@@ -758,6 +767,53 @@ async def handle_message(update: Update, context: CallbackContext):
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
+                        
+            elif state == 'creating_stripe_account':
+                user_message = update.message.text
+                
+                if user_message.lower() == 'yes':
+                    await start_stripe_account_creation(update, context)
+                    user_states[user_id]['state'] = 'awaiting_email'
+                elif user_message.lower() == 'no':
+                    await update.message.reply_text(
+                        "Returning to main menu",
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+                else:
+                    await update.message.reply_text(
+                        "❌ Invalid response. Please reply with *YES* to create an account or *No* to abort.",
+                        parse_mode="Markdown"
+                    )
+                
+                    
+            elif state == 'awaiting_email':
+                await get_email(update, context)
+                
+            elif state == 'confirming_complete_order':
+                user_message = update.message.text
+                
+                if user_message.lower() == 'yes':
+                    await update.message.reply_text(
+                        f"Order Completion Confirmed!\n"
+                        "The runner will be notified immediately!",
+                        parse_mode="Markdown"
+                    )
+                    
+                    await send_runner_confirmation(update, context, user_states.get(user_id)['selected_order'])
+                    
+                elif user_message.lower() == 'no':
+                    await update.message.reply_text(
+                        "Returning to main menu",
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+                else:
+                    await update.message.reply_text(
+                        "❌ Invalid response. Please reply with *YES* to create an account or *No* to abort.",
+                        parse_mode="Markdown"
+                    )
+                    
 
     except Exception as e:
         print(f"[ERROR] Exception occurred: {e}")  # Log the actual error
@@ -798,11 +854,9 @@ async def help_command(update: Update, context: CallbackContext):
 async def handle_my_orders(update: Update, context: CallbackContext):
     # Check if the update is from a callback query or a message
     if update.callback_query and update.callback_query.from_user:
-        # Callback query update (button pressed)
-        user_id = update.callback_query.from_user.id
+        user_id = update.callback_query.from_user.id  # Callback query update (button pressed)
     elif update.message and update.message.from_user:
-        # Message update (user sends a message)
-        user_id = update.message.from_user.id
+        user_id = update.message.from_user.id # Message update (user sends a message)
     
     message = update.message or update.callback_query.message
     
@@ -814,13 +868,13 @@ async def handle_my_orders(update: Update, context: CallbackContext):
         await update.callback_query.answer()  # Acknowledge the callback query
     
     session = session_local()
-    orders = session.query(Order).filter_by(user_id=user_id).all()
+    my_orders = session.query(Order).filter_by(user_id=user_id).all()
     session.close()
     
-    if orders:
+    if my_orders:
         order_list = [
             f"📌 *Order ID:* {escape_markdown(str(o.id), version=2)}\n"
-            f"🍽 *Meal:* {escape_markdown(o.order_text, version=2)}\n" for o in orders
+            f"🍽 *Meal:* {escape_markdown(o.order_text, version=2)}\n" for o in my_orders
         ]
 
         # Break orders into multiple messages if too long (avoid Telegram message limit)
@@ -828,8 +882,16 @@ async def handle_my_orders(update: Update, context: CallbackContext):
             chunk = "\n".join(order_list[i:i + 10])
             await user_message.reply_text(
                 f"🔍 *My Orders:*\n\n{chunk}\n\n ",
-                parse_mode="MarkdownV2",
+                parse_mode="MarkdownV2"
             )
+            
+        user_states[user_id] = {'state' : 'selecting_order_id'}
+        
+        keyboard = [[InlineKeyboardButton("Back", callback_data='start')]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await message.reply_text("Please enter the Order ID", reply_markup=reply_markup)
+        
     else:
         await user_message.reply_text(
             "*⏳ You do not have any orders right now!*\n\n"
@@ -837,25 +899,16 @@ async def handle_my_orders(update: Update, context: CallbackContext):
             parse_mode="Markdown",
             reply_markup=get_main_menu()
         )
-    
-    keyboard = [
-        [InlineKeyboardButton("Back", callback_data='start')]
-    ]
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    user_states[user_id] = {'state': 'selecting_order_id'}
-    
-    await message.reply_text("Please enter the Order ID", reply_markup=reply_markup)
 
 async def handle_payment(update: Update, context: CallbackContext):
-    user_id = update.message.from_user.id
     
     # Determine if it's a message (command) or a callback query (button press)
-    if update.message:
-        user_message = update.message  # Handle /vieworders command
-    elif update.callback_query:
-        user_message = update.callback_query.message  # Handle inline button press
+    if update.message:   # Handle /vieworders command
+        user_id = update.message.from_user.id
+        message = update.message 
+    elif update.callback_query.message:
+        user_id = update.callback_query.from_user.id 
+        message = update.callback_query.message  # Handle inline button press
         await update.callback_query.answer()  # Acknowledge the callback query
     
     # Query the database to get available orders
@@ -868,23 +921,18 @@ async def handle_payment(update: Update, context: CallbackContext):
             f"📌 *Order ID:* {escape_markdown(str(o.id), version=2)}\n"
             f"🍽 *Meal:* {escape_markdown(o.order_text, version=2)}\n" for o in orders
         ]
-
-        # Break orders into multiple messages if too long (avoid Telegram message limit)
-        for i in range(0, len(order_list), 10):  # Send 10 orders per message
-            chunk = "\n".join(order_list[i:i + 10])
-            await user_message.reply_text(
-                f"🔍 *My Orders:*\n\n{chunk}\n\n ",
-                parse_mode="MarkdownV2",
-            )
-        user_states[user_id] = {'state': 'selecting_order_id'}
+        
+        user_states[user_id]['state'] = 'awaiting_payment_amount'
+        await message.reply_text("Please enter your payment amount (SGD)")
+        
     else:
-        await user_message.reply_text(
+        await message.reply_text(
             "⏳ You do not have any orders right now!*\n\n"
             "💡 Please place an order using /order.",
             parse_mode="Markdown",
             reply_markup=get_main_menu()
         )
-        
+
 async def edit_order(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     
@@ -918,7 +966,7 @@ async def edit_order(update: Update, context: CallbackContext):
             parse_mode="Markdown"
         )
     session.close()
-    
+
 async def delete_order(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     
@@ -960,7 +1008,7 @@ async def report_user(update: Update, context: CallbackContext):
         message = update.message
     elif update.callback_query:
         message = update.callback_query.message
-        
+    
     user_states[user_id]['state'] = 'reporting_user'
         
     await message.reply_text(
@@ -979,6 +1027,140 @@ async def report_user(update: Update, context: CallbackContext):
         parse_mode="Markdown"
     )
     
+async def complete_order(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    
+    if update.message:
+        message = update.message
+    elif update.callback_query:
+        message = update.callback_query.message
+    
+    if orderer_has_paid(update, context):
+        user_states[user_id]['state'] = 'confirming_complete_order'
+        
+        await message.reply_text(
+            f"You are about to complete the Order\n"
+            "Are you sure (Yes or No)"
+        )
+    else:
+        await message.reply_text(
+            f"You have not paid for the order yet.\n"
+            "Please pay first before completing the order.",
+            parse_mode="Markdown",
+            reply_markup=get_my_orders_menu()
+        )
+    
+async def send_runner_confirmation(update: Update, context: CallbackContext, order_id):
+    session = session_local()
+    order = session.query(Order).filter_by(id=order_id).first()
+    session.close()
+    
+    runner_id = order.runner_id
+    user_id = order.user_id
+    
+    user_states[runner_id]['selected_order'] = order_id
+    
+    keyboard = [[InlineKeyboardButton("Complete Order", callback_data=f'handle_completed_order')]]
+    
+    # Notify the orderer
+    if runner_id:
+        try:
+            await context.bot.send_message(
+                chat_id=runner_id,
+                text=messages.ORDER_COMPLETION_CONFIRMATION.format(
+                    user_id=user_id
+                ),
+                parse_mode="Markdown",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+            )
+        except Exception as e:
+            print(f"Failed to notify orderer @{runner_id}: {e}")
+    
+async def handle_completed_order(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    
+    order_id = user_states.get(user_id)['selected_order']
+    
+    session = session_local()
+    order = session.query(Order).filter_by(id=order_id, runner_id=user_id).first()
+    payment_amount = order.payment_amount
+    orderer_id = order.user_id
+    runner_id = order.runner_id
+    
+    order.completed = True
+    session.commit()
+    session.close()
+    
+    # Notify the orderer and runner
+    if orderer_id: 
+        try:
+            await context.bot.send_message(
+                chat_id=orderer_id,
+                text=messages.ORDER_COMPLETION_NOTIFICATION.format(
+                    order_id=order_id
+                ),
+                parse_mode="Markdown",
+                reply_markup=get_main_menu(),
+            )
+        except Exception as e:
+            print(f"Failed to notify orderer @{orderer_id}: {e}")
+            
+    if runner_id:
+        try:
+            await context.bot.send_message(
+                chat_id=runner_id,
+                text=messages.ORDER_COMPLETION_NOTIFICATION.format(
+                    order_id=order_id
+                ),
+                parse_mode="Markdown",
+                reply_markup=get_main_menu(),
+            )
+        except Exception as e:
+            print(f"Failed to notify runner @{runner_id}: {e}")
+            
+    # send payout to the runner
+    await transfer_funds(runner_id, payment_amount)
+            
+    if orderer_id in user_states:
+        del user_states[runner_id]
+    if orderer_id in user_states:
+        del user_states[orderer_id]
+
+async def check_for_stripe_account(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    
+    message = update.message if update.message else update.callback_query.message
+    
+    session = session_local()
+    stripe_account_id = session.query(StripeAccount).get(user_id)
+    
+    if stripe_account_id:
+        return False
+    else:
+        user_states[user_id] = {'state': 'creating_stripe_account'}
+        
+        await message.reply_text(
+            f"You do not have a Stripe Account setup yet.\n"
+            "To start claiming orders, you have to create a Stripe Account to receive payment.\n\n"
+            "Would you like to proceed? (Yes or No)")
+
+        return True
+    
+def orderer_has_paid(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    
+    message = update.message if update.message else update.callback_query.message
+    
+    session = session_local()
+    order_id = user_states[user_id]['selected_order']
+    
+    order = session.query(Order).filter_by(id=order_id).first()
+    session.close()
+    
+    if order.payment_amount:
+        return True
+    else:
+        return False
 
 async def handle_button(update: Update, context: CallbackContext):
     """Handles button presses from InlineKeyboardMarkup."""
@@ -1070,6 +1252,9 @@ async def handle_button(update: Update, context: CallbackContext):
             'edit_order': edit_order,
             'delete_order': delete_order,
             'report_user': report_user,
+            'handle_payment': handle_payment,
+            'complete_order': complete_order,
+            'handle_completed_order': handle_completed_order,
         }
 
         if query.data in actions:

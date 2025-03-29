@@ -46,6 +46,8 @@ class Order(Base):
     runner_handle = Column(String, nullable=True)
     order_placed_time = Column(DateTime, default=lambda: datetime.now(SGT))  
     order_claimed_time = Column(DateTime, nullable=True)
+    completed = Column(Boolean, nullable=False, default=False)
+    payment_amount = Column(Float, nullable=True)
     
 class ReportLogs(Base):
     __tablename__ = 'report_logs'
@@ -55,6 +57,13 @@ class ReportLogs(Base):
     orderId = Column(String, nullable=False)
     subjectId = Column(String, nullable=False)
     report_details = Column(String, nullable=False)
+
+class StripeAccount(Base):
+    __tablename__ = 'stripe_accounts'
+    telegram_id = Column(BigInteger, primary_key=True)
+    stripe_account_id = Column(String, nullable=False)
+    charges_enabled = Column(Boolean, nullable=True)
+    payouts_enabled = Column(Boolean, nullable=True)
 
 # Create all tables in the database
 def create_tables():

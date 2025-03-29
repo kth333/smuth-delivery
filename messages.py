@@ -74,6 +74,17 @@ ORDER_CLAIMED_NOTIFICATION = (
     "📍 *Stay tuned for updates on delivery\!*"
 )
 
+# Order completion confirmation notification for the runner
+ORDER_COMPLETION_CONFIRMATION = (
+    "{user_id} has indicated the completion of the order\n\n"
+    "Please click the *'COMPLETE ORDER'* button to confirm!"
+)
+
+# Order completion notification for the runner and orderer
+ORDER_COMPLETION_NOTIFICATION = (
+    "*Order {order_id}* has been completed!"
+)
+
 # Order ID request prompt
 ORDER_ID_REQUEST = "🔍 Please enter the *Order ID* you want to claim:"
 
@@ -165,4 +176,10 @@ CLAIM_CONFIRMATION = (
     "💸 *Delivery Fee Offered:* {delivery_fee}\n\n" 
     "Please confirm by sending the *Order ID* again\.\n\n"
     "To cancel, press the *Back* button below\."
+)
+
+SUCCESSFUL_PAYMENT_NOTIFICATION = (
+    "✅ *Payment for Order ID {order_id} was successful!*\n\n"
+    "💰 *Amount Paid:* ${amount}\n\n"
+    "Thank you for using Smuth Delivery Bot!"
 )
