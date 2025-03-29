@@ -7,12 +7,96 @@ import messages  # Importing the messages from messages.py
 from payment import *
 from payout import *
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
+from telegram import Bot
+import logging
+import re
+
+load_dotenv()
+
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+bot = Bot(token=TOKEN)
 
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 MAX_ORDER_LENGTH = 100
 MAX_ORDER_DETAILS_LENGTH = 500
+
+SGT = pytz.timezone("Asia/Singapore")
+
+def validate_strict_time_format(user_input: str) -> datetime | None:
+    pattern = r'^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])\s+([0-1]?[0-9]):([0-5][0-9])(am|pm)$'
+    if not re.match(pattern, user_input.strip().lower()):
+        return None
+
+    try:
+        year = datetime.now(SGT).year
+        full_input = f"{year}-{user_input.strip()}"  # e.g., "2025-03-28 4:10pm"
+        dt = datetime.strptime(full_input, "%Y-%m-%d %I:%M%p")
+        dt = SGT.localize(dt)
+        return dt
+    except Exception:
+        return None
+
+from telegram.helpers import escape_markdown
+
+async def expire_old_orders(bot: Bot):
+    now = datetime.now(SGT)
+    session = session_local()
+
+    expired_orders = session.query(Order).filter(
+        Order.expired == False,
+        Order.claimed == False,
+        Order.latest_pickup_time < now
+    ).all()
+
+    bot_username = (await bot.get_me()).username
+
+    for order in expired_orders:
+        order.expired = True
+        logging.info(f"[EXPIRED] Order ID {order.id} marked as expired")
+
+        # Notify user privately
+        try:
+            await bot.send_message(
+                chat_id=order.user_id,
+                text=f"Sorry, we couldn't find you a runner for *Order ID {order.id}*.",
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            logging.warning(f"Failed to notify user {order.user_id} about expired order: {e}")
+        keyboard = [
+            [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{order.id}")],
+            [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        # Edit channel message
+        if order.channel_message_id:
+            try:
+                await bot.edit_message_text(
+                    chat_id=CHANNEL_ID,
+                    message_id=order.channel_message_id,
+                    text=messages.NEW_ORDER.format(
+                        order_id=escape_markdown(str(order.id), version=2),
+                        order_text=escape_markdown(order.order_text, version=2),
+                        order_location=escape_markdown(order.location, version=2),
+                        order_time=escape_markdown(
+                            f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                            f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
+                            version=2
+                        ),
+                        order_details=escape_markdown(order.details, version=2),
+                        delivery_fee=escape_markdown(order.delivery_fee, version=2),
+                        claim_status=escape_markdown("Claim Status: ⌛ This order has expired and is no longer available.", version=2)
+                    ),
+                    parse_mode="MarkdownV2",
+                    reply_markup=reply_markup
+                )
+            except Exception as e:
+                logging.warning(f"Failed to edit expired message: {e}")
+
+    session.commit()
+    session.close()
 
 user_states = {} # Global variable to track user states
 user_orders = {}  # Dictionary to store user orders
@@ -45,7 +129,11 @@ async def start(update: Update, context: CallbackContext):
                 order_id=escape_markdown(str(order_id), version=2),
                 order_text=escape_markdown(order.order_text, version=2),
                 order_location=escape_markdown(order.location, version=2),
-                order_time=escape_markdown(order.time, version=2),
+                order_time=escape_markdown(
+                    f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                    f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
+                    version=2
+                ),
                 order_details=escape_markdown(order.details, version=2),
                 delivery_fee=escape_markdown(order.delivery_fee, version=2)
             ),
@@ -107,6 +195,28 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
         order = session.query(Order).filter_by(id=order_id, claimed=False).first()
 
         if order:
+            if order.user_id == user_id:
+                await update.message.reply_text(
+                    "⚠️ You can't claim your own order.",
+                    parse_mode="Markdown",
+                    reply_markup=get_main_menu()
+                )
+                session.close()
+                return
+
+            # Check if user has already claimed 2 active orders
+            active_claims = session.query(Order).filter_by(runner_id=user_id, claimed=True, expired=False).count()
+
+            if active_claims >= 2:
+                await message.reply_text(
+                    "🚫 You have already claimed 2 active orders.\n\n"
+                    "Please cancel one of your existing claims before claiming a new one.",
+                    parse_mode="Markdown",
+                    reply_markup=get_main_menu()
+                )
+                session.close()
+                return
+
             order.claimed = True
             order.runner_id = user_id
             user_handle = update.message.from_user.username
@@ -123,7 +233,11 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
                     order_id=escape_markdown(str(order_id), version=2),
                     order_text=escape_markdown(order.order_text, version=2),
                     order_location=escape_markdown(order.location, version=2),
-                    order_time=escape_markdown(order.time, version=2),
+                    order_time=escape_markdown(
+                        f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                        f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
+                        version=2
+                    ),
                     order_details=escape_markdown(order.details, version=2),
                     delivery_fee=escape_markdown(order.delivery_fee, version=2),
                     orderer_handle=escape_markdown(order.user_handle, version=2) if order.user_handle else "Unknown"
@@ -143,7 +257,11 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
                             order_id=escape_markdown(str(order_id), version=2),
                             order_text=escape_markdown(order.order_text, version=2),
                             order_location=escape_markdown(order.location, version=2),
-                            order_time=escape_markdown(order.time, version=2),
+                            order_time=escape_markdown(
+                                f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                                f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
+                                version=2
+                            ),
                             order_details=escape_markdown(order.details, version=2),
                             delivery_fee=escape_markdown(order.delivery_fee, version=2),
                             claimed_by=escape_markdown(claimed_by, version=2),
@@ -152,23 +270,27 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
                     )
                 except Exception as e:
                     print(f"Failed to notify orderer @{orderer_id}: {e}")
-
-            # Send a message to the channel
             bot_username = context.bot.username
             keyboard = [
-                [InlineKeyboardButton("Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+                [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{order.id}")],
+                [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
-
-            await context.bot.send_message(
+            await context.bot.edit_message_text(
                 chat_id=CHANNEL_ID,
-                text=messages.NEW_CLAIM.format(
-                    order_id=escape_markdown(str(order_id), version=2),
+                message_id=order.channel_message_id,
+                text=messages.NEW_ORDER.format(
+                    order_id=escape_markdown(str(order.id), version=2),
                     order_text=escape_markdown(order.order_text, version=2),
                     order_location=escape_markdown(order.location, version=2),
-                    order_time=escape_markdown(order.time, version=2),
+                    order_time=escape_markdown(
+                        f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                        f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
+                        version=2
+                    ),
                     order_details=escape_markdown(order.details, version=2),
-                    delivery_fee=escape_markdown(order.delivery_fee, version=2)
+                    delivery_fee=escape_markdown(order.delivery_fee, version=2),
+                    claim_status=escape_markdown("Claim Status: 🛵 This order has been claimed.", version=2)
                 ),
                 parse_mode="MarkdownV2",
                 reply_markup=reply_markup
@@ -183,21 +305,33 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
 async def view_orders(update: Update, context: CallbackContext):
     """Handles the /vieworders command to show available orders."""
     message = update.message if update.message else update.callback_query.message
-
+    now = datetime.now(SGT)
     session = session_local()
-    orders = session.query(Order).filter_by(claimed=False).all()
+    orders = session.query(Order).filter(
+        Order.claimed == False,
+        Order.latest_pickup_time > now
+    ).order_by(Order.earliest_pickup_time.asc()).all()
     session.close()
 
     if orders:
-        order_list = [
+
+        order_list = []
+        for o in orders:
+            time_str = (
+                f"{o.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                f"{o.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}"
+            )
+
+        order_text = (
             f"📌 *Order ID:* {escape_markdown(str(o.id), version=2)}\n"
             f"🍽 *Meal:* {escape_markdown(o.order_text, version=2)}\n"
             f"📍 *Location:* {escape_markdown(o.location, version=2)}\n"
-            f"⏳ *Time:* {escape_markdown(o.time, version=2)}\n"
+            f"⏳ *Time:* {escape_markdown(time_str, version=2)}\n"
             f"ℹ️ *Details:* {escape_markdown(o.details, version=2)}\n"
             f"💸 *Delivery Fee:* {escape_markdown(o.delivery_fee, version=2)}\n"
-            for o in orders
-        ]
+        )
+        
+        order_list.append(order_text)
 
         for i in range(0, len(order_list), 10):  # Send 10 orders per message
             chunk = "\n".join(order_list[i:i + 10])
@@ -296,42 +430,86 @@ async def handle_message(update: Update, context: CallbackContext):
 
                 # Store location in temporary state
                 user_orders[user_id]['location'] = location_text
-                user_states[user_id]['state'] = 'awaiting_order_time'
+                user_states[user_id]['state'] = 'awaiting_order_earliest_time'
 
                 # Ask for time next
                 await update.message.reply_text(
-                    messages.ORDER_INSTRUCTIONS_TIME,
+                    messages.ORDER_INSTRUCTIONS_EARLIEST_TIME,
                     parse_mode="Markdown",
                     reply_markup=get_main_menu()
                 )
 
-            elif state == 'awaiting_order_time':
-                # User is typing a time
+            elif state == 'awaiting_order_earliest_time':
                 time_text = update.message.text.strip()
+                earliest_dt = validate_strict_time_format(time_text)
 
-                # Validate time input
-                if not time_text:
+                if not earliest_dt:
                     await update.message.reply_text(
-                        messages.INVALID_ORDER_TEXT,  # Message for empty orders
+                        "❌ Invalid time format. Please use `MM-DD HH:MMam/pm`, e.g. `03-28 4:10pm`",
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+                    return
+                now = datetime.now(SGT)
+                if earliest_dt < now:
+                    await update.message.reply_text(
+                        "⚠️ Earliest pickup time must be in the *future*. Please enter a valid future time.",
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+                    return
+                if earliest_dt > now + timedelta(days=7):
+                    await update.message.reply_text(
+                        "⚠️ Earliest pickup time must be within the *next 7 days*. Please try again.",
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+                    return
+                user_orders[user_id]['earliest_dt'] = earliest_dt
+                user_orders[user_id]['earliest_input'] = time_text  # for display
+                user_states[user_id]['state'] = 'awaiting_order_latest_time'
+
+                await update.message.reply_text(
+                    messages.ORDER_INSTRUCTIONS_LATEST_TIME,
+                    parse_mode="Markdown",
+                    reply_markup=get_main_menu()
+                )
+
+            elif state == 'awaiting_order_latest_time':
+                time_text = update.message.text.strip()
+                latest_dt = validate_strict_time_format(time_text)
+
+                if not latest_dt:
+                    await update.message.reply_text(
+                        "❌ Invalid time format. Please use `MM-DD HH:MMam/pm`, e.g. `03-28 5:30pm`.",
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+                    return
+                
+                earliest_dt = user_orders[user_id]['earliest_dt']
+
+                if latest_dt <= earliest_dt:
+                    await update.message.reply_text(
+                        "⚠️ Latest pickup time must be *after* the earliest pickup time. Please try again.",
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
                     return
 
-                # Validate time length
-                if len(time_text) > MAX_ORDER_LENGTH:
+                # Max range rule
+                if latest_dt - earliest_dt > timedelta(hours=3):
                     await update.message.reply_text(
-                        messages.ORDER_TOO_LONG.format(max_length=MAX_ORDER_LENGTH, order_length=len(time_text)),
+                        "⚠️ Time range too wide. *Latest pickup time* must be within *3 hours* of the earliest.",
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
                     return
 
-                # Store time in temporary state
-                user_orders[user_id]['time'] = time_text
+                user_orders[user_id]['latest_dt'] = latest_dt
+                user_orders[user_id]['latest_input'] = time_text  # for display
                 user_states[user_id]['state'] = 'awaiting_order_details'
 
-                # Ask for details next
                 await update.message.reply_text(
                     messages.ORDER_INSTRUCTIONS_DETAILS,
                     parse_mode="Markdown",
@@ -372,27 +550,34 @@ async def handle_message(update: Update, context: CallbackContext):
                 )
 
             elif state == 'awaiting_order_delivery_fee':
-                # User is typing fee
                 fee_text = update.message.text.strip()
-                
-                # Validate fee input
-                if not fee_text:
+
+                # 1. Check length
+                if len(fee_text) > 5:
                     await update.message.reply_text(
-                        messages.INVALID_ORDER_TEXT,  # Message for empty orders
+                        messages.ORDER_DETAILS_TOO_LONG.format(max_length=5, order_length=len(fee_text)),
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
                     return
 
-                # Validate fee length
-                if len(fee_text) > MAX_ORDER_LENGTH:
+                # 2. Validate it's a number (allow decimals) and at least 1.00
+                try:
+                    fee_amount = float(fee_text)
+                    if fee_amount < 1.0:
+                        await update.message.reply_text(
+                            "💸 Delivery fee must be at least *$1.00*. Please enter a higher amount.",
+                            parse_mode="Markdown",
+                            reply_markup=get_main_menu()
+                        )
+                        return
+                except ValueError:
                     await update.message.reply_text(
-                        messages.ORDER_DETAILS_TOO_LONG.format(max_length=MAX_ORDER_LENGTH, order_length=len(fee_text)),
+                        "❌ Please enter a *valid number* for the delivery fee. Example: `1.50`",
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
                     return
-
                 # Store fee in temporary state
                 user_orders[user_id]['delivery_fee'] = fee_text
                 user_states[user_id]['state'] = 'awaiting_order_confirmation'
@@ -400,7 +585,11 @@ async def handle_message(update: Update, context: CallbackContext):
                 order_summary = messages.ORDER_SUMMARY.format(
                     order_text=escape_markdown(user_orders[user_id]['meal'], version=2),
                     order_location=escape_markdown(user_orders[user_id]['location'], version=2),
-                    order_time=escape_markdown(user_orders[user_id]['time'], version=2),
+                    order_time=escape_markdown(
+                        f"{user_orders[user_id]['earliest_dt'].astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                        f"{user_orders[user_id]['latest_dt'].astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
+                        version=2
+                    ),
                     order_details=escape_markdown(user_orders[user_id]['details'], version=2),
                     delivery_fee=escape_markdown(user_orders[user_id]['delivery_fee'], version=2)
                 )
@@ -438,6 +627,28 @@ async def handle_message(update: Update, context: CallbackContext):
                             reply_markup=get_main_menu()
                         )
                         return
+                    
+                    if order.user_id == user_id:
+                        await update.message.reply_text(
+                            "⚠️ You can't claim your own order.",
+                            parse_mode="Markdown",
+                            reply_markup=get_main_menu()
+                        )
+                        session.close()
+                        return
+
+                    # Check if user has already claimed 2 active orders
+                    active_claims = session.query(Order).filter_by(runner_id=user_id, claimed=True, expired=False).count()
+
+                    if active_claims >= 2:
+                        await update.message.reply_text(
+                            "🚫 You have already claimed 2 active orders.\n\n"
+                            "Please cancel one of your existing claims before claiming a new one.",
+                            parse_mode="Markdown",
+                            reply_markup=get_main_menu()
+                        )
+                        session.close()
+                        return
 
                     # Claim the order
                     order.claimed = True
@@ -458,7 +669,11 @@ async def handle_message(update: Update, context: CallbackContext):
                             order_id=escape_markdown(str(order_id), version=2),
                             order_text=escape_markdown(order.order_text, version=2),
                             order_location=escape_markdown(order.location, version=2),
-                            order_time=escape_markdown(order.time, version=2),
+                            order_time=escape_markdown(
+                                f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                                f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
+                                version=2
+                            ),
                             order_details=escape_markdown(order.details, version=2),
                             delivery_fee=escape_markdown(order.delivery_fee, version=2),
                             orderer_handle=escape_markdown(order.user_handle, version=2) if order.user_handle else "Unknown"
@@ -476,7 +691,11 @@ async def handle_message(update: Update, context: CallbackContext):
                                     order_id=escape_markdown(str(order_id), version=2),  # ✅ Escape input correctly
                                     order_text=escape_markdown(order.order_text, version=2),
                                     order_location=escape_markdown(order.location, version=2),
-                                    order_time=escape_markdown(order.time, version=2),
+                                    order_time=escape_markdown(
+                                        f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                                        f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
+                                        version=2
+                                    ),
                                     order_details=escape_markdown(order.details, version=2),
                                     delivery_fee=escape_markdown(order.delivery_fee, version=2),
                                     claimed_by=escape_markdown(claimed_by, version=2),
@@ -485,23 +704,27 @@ async def handle_message(update: Update, context: CallbackContext):
                             )
                         except Exception as e:
                             print(f"Failed to notify orderer @{orderer_id}: {e}")
-
-                    # Send a message to the channel
                     bot_username = context.bot.username
                     keyboard = [
-                        [InlineKeyboardButton("Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+                        [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{order.id}")],
+                        [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
                     ]
                     reply_markup = InlineKeyboardMarkup(keyboard)
-
-                    await context.bot.send_message(
+                    await context.bot.edit_message_text(
                         chat_id=CHANNEL_ID,
-                        text=messages.NEW_CLAIM.format(
-                            order_id=escape_markdown(str(order_id), version=2),
+                        message_id=order.channel_message_id,
+                        text=messages.NEW_ORDER.format(
+                            order_id=escape_markdown(str(order.id), version=2),
                             order_text=escape_markdown(order.order_text, version=2),
                             order_location=escape_markdown(order.location, version=2),
-                            order_time=escape_markdown(order.time, version=2),
+                            order_time=escape_markdown(
+                                f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                                f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
+                                version=2
+                            ),
                             order_details=escape_markdown(order.details, version=2),
-                            delivery_fee=escape_markdown(order.delivery_fee, version=2)
+                            delivery_fee=escape_markdown(order.delivery_fee, version=2),
+                            claim_status=escape_markdown("Claim Status: 🛵 This order has been claimed.", version=2)
                         ),
                         parse_mode="MarkdownV2",
                         reply_markup=reply_markup
@@ -531,6 +754,28 @@ async def handle_message(update: Update, context: CallbackContext):
                         )
                         return
 
+                    if order.user_id == user_id:
+                        await update.message.reply_text(
+                            "⚠️ You can't claim your own order.",
+                            parse_mode="Markdown",
+                            reply_markup=get_main_menu()
+                        )
+                        session.close()
+                        return
+
+                    # Check if user has already claimed 2 active orders
+                    active_claims = session.query(Order).filter_by(runner_id=user_id, claimed=True, expired=False).count()
+
+                    if active_claims >= 2:
+                        await update.message.reply_text(
+                            "🚫 You have already claimed 2 active orders.\n\n"
+                            "Please cancel one of your existing claims before claiming a new one.",
+                            parse_mode="Markdown",
+                            reply_markup=get_main_menu()
+                        )
+                        session.close()
+                        return
+
                     # Claim the order
                     order.claimed = True
                     order.runner_id = user_id
@@ -550,7 +795,11 @@ async def handle_message(update: Update, context: CallbackContext):
                             order_id=escape_markdown(str(order_id), version=2),
                             order_text=escape_markdown(order.order_text, version=2),
                             order_location=escape_markdown(order.location, version=2),
-                            order_time=escape_markdown(order.time, version=2),
+                            order_time=escape_markdown(
+                                f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                                f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
+                                version=2
+                            ),
                             order_details=escape_markdown(order.details, version=2),
                             delivery_fee=escape_markdown(order.delivery_fee, version=2),
                             orderer_handle=escape_markdown(order.user_handle, version=2) if order.user_handle else "Unknown"
@@ -568,7 +817,11 @@ async def handle_message(update: Update, context: CallbackContext):
                                     order_id=escape_markdown(str(order_id), version=2),  # ✅ Escape input correctly
                                     order_text=escape_markdown(order.order_text, version=2),
                                     order_location=escape_markdown(order.location, version=2),
-                                    order_time=escape_markdown(order.time, version=2),
+                                    order_time=escape_markdown(
+                                        f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                                        f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
+                                        version=2
+                                    ),
                                     order_details=escape_markdown(order.details, version=2),
                                     delivery_fee=escape_markdown(order.delivery_fee, version=2),
                                     claimed_by=escape_markdown(claimed_by, version=2),
@@ -577,23 +830,27 @@ async def handle_message(update: Update, context: CallbackContext):
                             )
                         except Exception as e:
                             print(f"Failed to notify orderer @{orderer_id}: {e}")
-
-                    # Send a message to the channel
                     bot_username = context.bot.username
                     keyboard = [
-                        [InlineKeyboardButton("Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+                        [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{order.id}")],
+                        [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
                     ]
                     reply_markup = InlineKeyboardMarkup(keyboard)
-
-                    await context.bot.send_message(
+                    await context.bot.edit_message_text(
                         chat_id=CHANNEL_ID,
-                        text=messages.NEW_CLAIM.format(
-                            order_id=escape_markdown(str(order_id), version=2),
+                        message_id=order.channel_message_id,
+                        text=messages.NEW_ORDER.format(
+                            order_id=escape_markdown(str(order.id), version=2),
                             order_text=escape_markdown(order.order_text, version=2),
                             order_location=escape_markdown(order.location, version=2),
-                            order_time=escape_markdown(order.time, version=2),
+                            order_time=escape_markdown(
+                                f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                                f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
+                                version=2
+                            ),
                             order_details=escape_markdown(order.details, version=2),
-                            delivery_fee=escape_markdown(order.delivery_fee, version=2)
+                            delivery_fee=escape_markdown(order.delivery_fee, version=2),
+                            claim_status=escape_markdown("Claim Status: 🛵 This order has been claimed.", version=2)
                         ),
                         parse_mode="MarkdownV2",
                         reply_markup=reply_markup
@@ -627,6 +884,114 @@ async def handle_message(update: Update, context: CallbackContext):
                         "❌ Invalid Order ID. Please enter a valid Order ID or type /cancel to exit.",
                         parse_mode="Markdown"
                     )
+            elif state == 'selecting_claimed_order':
+                try:
+                    order_id = int(update.message.text.strip())
+                    session = session_local()
+                    order = session.query(Order).filter_by(id=order_id, runner_id=user_id, claimed=True).first()
+
+                    if not order:
+                        await update.message.reply_text(
+                            "❌ Invalid or unclaimed Order ID. Please try again.",
+                            parse_mode="Markdown"
+                        )
+                        session.close()
+                        return
+
+                    user_states[user_id] = {'state': 'canceling_claim', 'selected_order': order_id}
+
+                    await update.message.reply_text(
+                        f"🛑 Are you sure you want to cancel your claim on *Order ID {order_id}*?\n"
+                        "Reply with *YES* to confirm or *NO* to abort.",
+                        parse_mode="Markdown"
+                    )
+                    session.close()
+                except ValueError:
+                    await update.message.reply_text(
+                        "❌ Please enter a valid Order ID.",
+                        parse_mode="Markdown"
+                    )
+            elif state == 'canceling_claim':
+                user_response = update.message.text.strip().lower()
+                order_id = user_states[user_id]['selected_order']
+
+                if user_response == "yes":
+                    session = session_local()
+                    order = session.query(Order).filter_by(id=order_id, runner_id=user_id, claimed=True).first()
+
+                    if order:
+                        now = datetime.now(SGT)
+                        if order.latest_pickup_time < now:
+                            await update.message.reply_text(
+                                "⏰ You can't cancel this claim because the pickup time has already passed.",
+                                parse_mode="Markdown",
+                                reply_markup=get_main_menu()
+                            )
+                            session.close()
+                            del user_states[user_id]
+                            return
+
+                        # Unclaim the order
+                        order.claimed = False
+                        order.runner_id = None
+                        order.runner_handle = None
+                        order.order_claimed_time = None
+                        session.commit()
+
+                        await update.message.reply_text(
+                            f"✅ You have canceled your claim on *Order ID {order_id}*.",
+                            parse_mode="Markdown",
+                            reply_markup=get_main_menu()
+                        )
+
+                        # Edit the original channel post to reflect availability again
+                        bot_username = context.bot.username
+                        keyboard = [
+                            [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{order.id}")],
+                            [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+                        ]
+                        reply_markup = InlineKeyboardMarkup(keyboard)
+
+                        # Regenerate message content with new status
+                        edited_text = messages.NEW_ORDER.format(
+                            order_id=escape_markdown(str(order.id), version=2),
+                            order_text=escape_markdown(order.order_text, version=2),
+                            order_location=escape_markdown(order.location, version=2),
+                            order_time=escape_markdown(
+                                f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                                f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
+                                version=2
+                            ),
+                            order_details=escape_markdown(order.details, version=2),
+                            delivery_fee=escape_markdown(order.delivery_fee, version=2),
+                            claim_status=escape_markdown("Claim Status: ✅ This order is available to claim.", version=2)
+                        )
+
+                        # Edit the message in the channel
+                        await context.bot.edit_message_text(
+                            chat_id=CHANNEL_ID,
+                            message_id=order.channel_message_id,
+                            text=edited_text,
+                            parse_mode="MarkdownV2",
+                            reply_markup=reply_markup
+                        )
+
+                    else:
+                        await update.message.reply_text(
+                            "❌ Could not find a valid claimed order to cancel.",
+                            parse_mode="Markdown",
+                            reply_markup=get_main_menu()
+                        )
+                    session.close()
+                else:
+                    await update.message.reply_text(
+                        "❌ Claim cancellation aborted.",
+                        parse_mode="Markdown",
+                        reply_markup=get_main_menu()
+                    )
+
+                del user_states[user_id]
+
             elif state == 'awaiting_payment_amount':
                 amount = update.message.text
                 
@@ -716,18 +1081,42 @@ async def handle_message(update: Update, context: CallbackContext):
                 session = session_local()
                 order = session.query(Order).filter_by(id=order_id).first()
 
-                if user_message.lower() == 'yes':
-                    session.delete(order)
+                if user_message.lower() == 'yes' and order:
+                    channel_message_id = order.channel_message_id
+
+                    # Escape Order ID before deleting the order
+                    escaped_order_id = escape_markdown(str(order.id), version=2)
+
+                    order.expired = True
                     session.commit()
 
                     await update.message.reply_text(
-                        "Your Order has been successfully deleted",
+                        "✅ Your order has been successfully canceled",
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
+                    bot_username = context.bot.username
+                    keyboard = [
+                        [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{order.id}")],
+                        [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+                    ]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    if channel_message_id:
+                        try:
+                            cancel_msg = f"📌 *Order ID:* {escaped_order_id}\n🗑 *This order has been canceled by the user\.*"
+                            await context.bot.edit_message_text(
+                                chat_id=CHANNEL_ID,
+                                message_id=channel_message_id,
+                                text=cancel_msg,
+                                parse_mode="MarkdownV2",
+                                reply_markup=reply_markup
+                            )
+                        except Exception as e:
+                            print(f"Failed to edit deleted order message: {e}")
+
                 elif user_message.lower() == 'no':
                     await update.message.reply_text(
-                        "Failed to delete your order",
+                        "❌ Order deletion canceled",
                         parse_mode="Markdown",
                         reply_markup=get_main_menu()
                     )
@@ -1162,6 +1551,45 @@ def orderer_has_paid(update: Update, context: CallbackContext):
     else:
         return False
 
+async def handle_my_claims(update: Update, context: CallbackContext):
+    user_id = update.callback_query.from_user.id if update.callback_query else update.message.from_user.id
+    message = update.callback_query.message if update.callback_query else update.message
+
+    if update.callback_query:
+        await update.callback_query.answer()
+
+    session = session_local()
+    orders = session.query(Order).filter_by(runner_id=user_id, claimed=True, expired=False).all()
+    session.close()
+
+    if orders:
+        order_list = [
+            f"📌 *Order ID:* {escape_markdown(str(o.id), version=2)}\n"
+            f"🍽 *Meal:* {escape_markdown(o.order_text, version=2)}\n" for o in orders
+        ]
+
+        for i in range(0, len(order_list), 10):
+            chunk = "\n".join(order_list[i:i + 10])
+            await message.reply_text(
+                f"📦 *My Claims:*\n\n{chunk}",
+                parse_mode="MarkdownV2"
+            )
+    else:
+        await message.reply_text(
+            "⏳ You haven't claimed any orders yet.\n\nCheck /vieworders to see available ones.",
+            parse_mode="Markdown",
+            reply_markup=get_main_menu()
+        )
+
+    # Ask user to pick which claimed order to cancel
+    keyboard = [
+        [InlineKeyboardButton("Back", callback_data='start')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    user_states[user_id] = {'state': 'selecting_claimed_order'}
+    await message.reply_text("Please enter the Order ID you want to cancel claim for:", reply_markup=reply_markup)
+
 async def handle_button(update: Update, context: CallbackContext):
     """Handles button presses from InlineKeyboardMarkup."""
     query = update.callback_query
@@ -1175,7 +1603,8 @@ async def handle_button(update: Update, context: CallbackContext):
         new_order = Order(
             order_text=user_orders[user_id]['meal'], 
             location=user_orders[user_id]['location'],
-            time=user_orders[user_id]['time'],
+            earliest_pickup_time=user_orders[user_id]['earliest_dt'],
+            latest_pickup_time=user_orders[user_id]['latest_dt'],
             details=user_orders[user_id]['details'],
             delivery_fee=user_orders[user_id]['delivery_fee'],
             user_id=user_id, 
@@ -1196,7 +1625,11 @@ async def handle_button(update: Update, context: CallbackContext):
                 order_id=escape_markdown(str(new_order.id), version=2),
                 order_text=escape_markdown(new_order.order_text, version=2),
                 order_location=escape_markdown(new_order.location, version=2),
-                order_time=escape_markdown(new_order.time, version=2),
+                order_time=escape_markdown(
+                    f"{new_order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                    f"{new_order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
+                    version=2
+                ),
                 order_details=escape_markdown(new_order.details, version=2),
                 delivery_fee=escape_markdown(new_order.delivery_fee, version=2)
             ),
@@ -1212,19 +1645,29 @@ async def handle_button(update: Update, context: CallbackContext):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        await context.bot.send_message(
+        # Send message and capture it
+        sent_message = await context.bot.send_message(
             chat_id=CHANNEL_ID,
             text=messages.NEW_ORDER.format(
                 order_id=escape_markdown(str(new_order.id), version=2),
                 order_text=escape_markdown(new_order.order_text, version=2),
                 order_location=escape_markdown(new_order.location, version=2),
-                order_time=escape_markdown(new_order.time, version=2),
+                order_time=escape_markdown(
+                    f"{new_order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
+                    f"{new_order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
+                    version=2
+                ),
                 order_details=escape_markdown(new_order.details, version=2),
-                delivery_fee=escape_markdown(new_order.delivery_fee, version=2)
+                delivery_fee=escape_markdown(new_order.delivery_fee, version=2),
+                claim_status=escape_markdown("Claim Status: ✅ This order is available to claim.", version=2)
             ),
-            parse_mode="MarkdownV2",  # ✅ Use MarkdownV2
+            parse_mode="MarkdownV2",
             reply_markup=reply_markup
         )
+
+        # Store the message ID in the order
+        new_order.channel_message_id = sent_message.message_id
+        session.commit()
 
     elif callback_data.startswith("cancel_order_"):
         # Cancel order process
@@ -1248,6 +1691,7 @@ async def handle_button(update: Update, context: CallbackContext):
             'vieworders': view_orders,
             'claim': handle_claim,
             'myorders': handle_my_orders,
+            'myclaims': handle_my_claims,
             'help': help_command,
             'edit_order': edit_order,
             'delete_order': delete_order,
