@@ -51,12 +51,8 @@ async def handle_conversation(update: Update, context: CallbackContext):
     elif current_state == "awaiting_order_details":
         await handle_details_input(update, context)
     elif current_state == "awaiting_order_delivery_fee":
-        # handle_fee_input should update the state to 'awaiting_order_confirmation' on success.
         if await handle_fee_input(update, context):
-            # Optionally, you can automatically call confirmation here.
-            pass
-    elif current_state == "awaiting_order_confirmation":
-        await handle_confirmation_input(update, context)
+            await handle_confirmation_input(update, context)
     elif current_state == "deleting_order":
         await handle_deletion(update, context)
     else:

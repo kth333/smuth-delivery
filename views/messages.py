@@ -15,17 +15,17 @@ WELCOME_TEXT = (
 HELP_TEXT = (
         "💡 *SmuthDelivery Bot Guide* 🚀\n\n"
         "📌 *How It Works:*\n"
-        "1️⃣ *Place an Order:* To place an order, use the bot to enter the details of your meal, delivery location, time, and the delivery fee you wish to pay.\n"
-        "2️⃣ *Claim an Order \(Food Runner\):* If you're a food runner, check available orders and claim one.\n"
-        "3️⃣ *Delivering Food:* After claiming an order, get the food and deliver it to the user’s specified location.\n"
-        "4️⃣ *Communicate via Telegram Chat:* Once you've claimed an order, communicate with the orderer via Telegram chat to finalize details.\n\n"
-        "The bot privately sends the Telegram handles of the orderer/runner to each party once an order is claimed. Please ensure your Telegram chat is open to new contacts so that orderers/runners can communicate with you.\n\n"
+        "1️⃣ *Place an Order:* To place an order, use the bot to enter the details of your meal, delivery location, time, and the delivery fee you wish to pay\.\n"
+        "2️⃣ *Claim an Order:* Use view orders to claim an order and deliver it to get a delivery fee\.\n"
+        "3️⃣ *Delivering Food:* After claiming an order, get the food and deliver it to the user’s specified location\.\n"
+        "4️⃣ *Communicate via Telegram Chat:* Once you've claimed an order, communicate with the orderer via Telegram chat to finalize details\.\n\n"
+        "The bot privately sends the Telegram handles of the orderer/runner to each party once an order is claimed\. Please ensure your Telegram chat is open to new contacts so that orderers/runners can communicate with you\.\n\n"
 
-        "🔹 This bot is still in very early development. Features are not perfect.\n"
+        "🔹 This bot is still in very early development\. Features are not perfect\.\n"
         f"🔹 If you have any issues or suggestions, leave your comments here \(along with your Telegram handle if you want us to get back to you\)\:\n"
-        "https://forms.gle/f6FAuLeXSbw1vSSM7\n\n"
+        "https://forms\.gle/f6FAuLeXSbw1vSSM7\n\n"
         
-        "📢 *Stay Updated:* Subscribe to our channel for real\-time updates on new orders: [Smuth Delivery]\(https://t.me/smuth\_delivery\)"
+        "📢 *Stay Updated:* Subscribe to our channel for real\-time updates on new orders: [Smuth Delivery](https://t\.me/smuth\_delivery)"
 )
 
 # Order placement instructions
