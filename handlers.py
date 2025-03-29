@@ -941,7 +941,7 @@ async def handle_completed_order(update: Update, context: CallbackContext):
     
     session = session_local()
     order = session.query(Order).filter_by(id=order_id, runner_id=user_id).first()
-    
+    payment_amount = order.payment_amount
     orderer_id = order.user_id
     runner_id = order.runner_id
     
@@ -975,6 +975,9 @@ async def handle_completed_order(update: Update, context: CallbackContext):
             )
         except Exception as e:
             print(f"Failed to notify runner @{runner_id}: {e}")
+            
+    # send payout to the runner
+    await transfer_funds(runner_id, payment_amount)
             
     if orderer_id in user_states:
         del user_states[runner_id]

@@ -98,23 +98,45 @@ async def get_email(update, context):
         await update.message.reply_text("I am not sure what you want to do. Please start with /pay to create your Stripe account.")
 
     
-async def transfer_funds(update, context):
-    stripe_account_id = "acct_1QvDWP07K9AaD6uW"
-    amount = 100
+async def transfer_funds(runner_id, amount):
+    session = session_local()
     
-    payout = transfer_to_user(stripe_account_id, amount)
+    stripe_account_id = session.query(StripeAccount).filter_by(telegram_id=runner_id).first().stripe_account_id
+    session.close()
     
-    if payout:
-        await update.message.reply_text(f"Funds transferred successfully. Payout ID: {payout.id}")
+    transfer = await transfer_to_user(stripe_account_id, amount)
+    
+    if transfer:
+        payout = await payout_to_user(stripe_account_id, amount)
+    
+        if payout:
+            send_telegram_message(f"Successfully transferred ${amount} to your Stripe account: {payout['id']}", runner_id)
+        else:
+            send_telegram_message(f"Failed to transfer funds to your Stripe account. Please contact the admins for help", runner_id)
+        return
     else:
-        await update.message.reply_text("There was an error transferring funds.")
+        send_telegram_message(f"Failed to transfer funds to your Stripe account. Please contact the admins for help", runner_id)
+        return  
 
-async def transfer_to_user(stripe_account_id, amount_in_cents):
+async def transfer_to_user(stripe_account_id, amount):
+    try:
+        transfer = stripe.Transfer.create(
+            amount = int(amount * 100), # amount in cents
+            currency = 'sgd',
+            destination = stripe_account_id,
+            description = "Transfer to connected account for payout"
+        )
+        return transfer
+    except stripe.error.StripeError as e:
+        print(f"Error transferring funds: {e}")
+        return None
+
+async def payout_to_user(stripe_account_id, amount):
     try:
         payout = stripe.Payout.create(
-            amount = amount_in_cents,
+            amount = int(amount * 100), # amount in cents
             currency = 'sgd',
-            stripe_account = stripe_account_id
+            stripe_account = stripe_account_id,
         )
         return payout
     except stripe.error.StripeError as e:
