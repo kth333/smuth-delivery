@@ -47,10 +47,11 @@ async def create_account_link(stripe_account_id):
         
         # Create an account link for Standard account onboarding
         account_link = stripe.AccountLink.create(
-            account='acct_1R7aEeP3nOZUUnhI',
+            account=stripe_account_id,
             refresh_url="https://example.com/refresh",  # URL to retry onboarding
             return_url="https://example.com/return",  # URL to redirect to after completing onboarding
-            type="account_onboarding",# Specify that this link is for onboarding
+            type="account_onboarding", # Specify that this link is for onboarding
+            collection_options={"fields" : "currently_due"},
         )
         print("Generated Account Link:", account_link.url)
         return account_link.url
@@ -83,7 +84,7 @@ async def get_email(update, context):
                 )
                 
                 session = session_local()
-                # session.add(newStripeAccount)
+                session.add(newStripeAccount)
                 session.commit()
                 
             else:
@@ -133,3 +134,18 @@ def send_telegram_message(message, user_id):
         print("Message sent successfully.")
     else:
         print(f"Failed to send message. Status code: {response.status_code}, Response: {response.text}")
+        
+def update_onboarding_status(account):
+    session = session_local()
+    """Update the database on the onboarding status of the Stripe account."""
+    stripe_account = session.query(StripeAccount).filter_by(stripe_account_id=account['id']).first()
+    stripe_account.charges_enabled = account["charges_enabled"]
+    stripe_account.payouts_enabled = account["payouts_enabled"]
+    user_id = stripe_account.telegram_id
+    
+    session.commit()
+    """Update the onboarding status of the Stripe account."""
+    if account["charges_enabled"] and account["payouts_enabled"]:
+        send_telegram_message(f"Account {account['id']} onboarding completed and is now fully enabled.", user_id)
+    # else:
+        # send_telegram_message(f"Account {account['id']} is not fully enabled yet.", user_id)

@@ -46,6 +46,8 @@ class StripeAccount(Base):
     __tablename__ = 'stripe_accounts'
     telegram_id = Column(BigInteger, primary_key=True)
     stripe_account_id = Column(String, nullable=False)
+    charges_enabled = Column(Boolean, nullable=True)
+    payouts_enabled = Column(Boolean, nullable=True)
 
 # Create all tables in the database
 def create_tables():
