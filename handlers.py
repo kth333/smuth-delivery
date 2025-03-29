@@ -754,14 +754,14 @@ async def handle_message(update: Update, context: CallbackContext):
                         )
                         return
 
-                    # if order.user_id == user_id:
-                    #     await update.message.reply_text(
-                    #         "⚠️ You can't claim your own order.",
-                    #         parse_mode="Markdown",
-                    #         reply_markup=get_main_menu()
-                    #     )
-                    #     session.close()
-                    #     return
+                    if order.user_id == user_id:
+                        await update.message.reply_text(
+                            "⚠️ You can't claim your own order.",
+                            parse_mode="Markdown",
+                            reply_markup=get_main_menu()
+                        )
+                        session.close()
+                        return
 
                     # Check if user has already claimed 2 active orders
                     active_claims = session.query(Order).filter_by(runner_id=user_id, claimed=True, expired=False).count()
