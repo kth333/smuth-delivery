@@ -1,22 +1,6 @@
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, Sequence, ForeignKey, Float, BigInteger, DateTime
-from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-import os
-from dotenv import load_dotenv
+from sqlalchemy import Column, Integer, String, Boolean, Sequence, ForeignKey, Float, BigInteger, DateTime
+from .database import Base, SGT
 from datetime import datetime
-import pytz
-
-# Load environment variables
-load_dotenv()
-
-# Database configuration
-DATABASE_URL = os.getenv('DATABASE_URL')
-
-# Initialize SQLAlchemy components
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
-Base = declarative_base()
-session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Define the Order model
 class RunnerReview(Base):
@@ -29,24 +13,26 @@ class RunnerReview(Base):
     rating = Column(Float, nullable=False)  # Rating from 1 to 5
     comment = Column(String, nullable=True)
 
-SGT = pytz.timezone("Asia/Singapore")
-
 class Order(Base):
     __tablename__ = 'orders'
     id = Column(Integer, Sequence('order_id_seq'), primary_key=True)
     order_text = Column(String, nullable=False)
     location = Column(String, nullable=True)
     time = Column(String, nullable=True)
+    earliest_pickup_time = Column(DateTime(timezone=True), nullable=True)
+    latest_pickup_time = Column(DateTime(timezone=True), nullable=True)
     details = Column(String, nullable=True)
     delivery_fee = Column(String, nullable=True)
     claimed = Column(Boolean, default=False)
+    expired = Column(Boolean, default=False)
     user_id = Column(BigInteger, nullable=False)
     runner_id = Column(BigInteger, nullable=True)
     user_handle = Column(String, nullable=True)
     runner_handle = Column(String, nullable=True)
     completed = Column(Boolean, nullable=False, default=False)
-    order_placed_time = Column(DateTime, default=lambda: datetime.now(SGT))  
-    order_claimed_time = Column(DateTime, nullable=True)
+    order_placed_time = Column(DateTime(timezone=True), default=lambda: datetime.now(SGT))  
+    order_claimed_time = Column(DateTime(timezone=True), nullable=True)
+    channel_message_id = Column(Integer, nullable=True)
     
 class StripeAccount(Base):
     __tablename__ = 'stripe_accounts'
@@ -56,11 +42,3 @@ class StripeAccount(Base):
 # Create all tables in the database
 def create_tables():
     Base.metadata.create_all(bind=engine)
-
-# Get a session to interact with the database
-def get_db():
-    db = session_local()
-    try:
-        yield db
-    finally:
-        db.close()

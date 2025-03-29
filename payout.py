@@ -4,7 +4,7 @@ import stripe
 from flask import Flask, request
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler
-from database import *
+from models.database import *
 
 load_dotenv()
 

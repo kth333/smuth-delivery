@@ -1,32 +1,49 @@
 import os
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from dotenv import load_dotenv
-from handlers import handle_message, start, handle_order, view_orders, handle_claim, help_command, handle_button, handle_my_orders
-from database import *
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from telegram import Bot
+from controllers.start import start
+from controllers.conversation_handler import start_order, handle_conversation
+from controllers.claim_steps.handle_claim import handle_claim
+from controllers.help_command import help_command
+from controllers.order_management.handle_my_claims import handle_my_claims
+from controllers.order_management.handle_my_orders import handle_my_orders
+from controllers.order_management.view_orders import view_orders
+from controllers.handle_button import handle_button
+from tasks.expire_orders import expire_old_orders
+from models.database import create_tables
 
-# Load environment variables
 load_dotenv()
 
-# Load the bot token
-TOKEN = os.getenv('TELEGRAM_TOKEN')
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+bot = Bot(token=TOKEN)
 
 def main():
-    app = Application.builder().token(TOKEN).build()
+    app = ApplicationBuilder().token(TOKEN).build()
 
-    # Command Handlers
+    # Register command handlers.
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("order", handle_order))
+    app.add_handler(CommandHandler("order", start_order))
     app.add_handler(CommandHandler("vieworders", view_orders))
     app.add_handler(CommandHandler("claim", handle_claim))
-    app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("myorders", handle_my_orders))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    # Callback Query Handler (buttons)
+    app.add_handler(CommandHandler("help", help_command))
+    
+    # Register a message handler for the order conversation.
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_conversation))
+    
+    # Register the callback query handler for inline buttons.
     app.add_handler(CallbackQueryHandler(handle_button))
-
-    # Start polling
+    
+    # Set up the scheduler to run the expire_old_orders task every 5 minutes.
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(expire_old_orders, 'interval', minutes=5, args=[bot])
+    scheduler.start()
+    
+    # Start polling.
     app.run_polling()
 
 if __name__ == '__main__':
+    create_tables()
     main()

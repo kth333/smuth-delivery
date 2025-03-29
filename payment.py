@@ -4,8 +4,8 @@ from dotenv import load_dotenv
 import stripe 
 from flask import Flask, request
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from database import *
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from models.database import *
 
 load_dotenv()
 
