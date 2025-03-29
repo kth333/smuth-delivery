@@ -8,15 +8,15 @@ SGT = pytz.timezone("Asia/Singapore")
 
 def get_order_keyboard(bot_username: str, order_id: int) -> InlineKeyboardMarkup:
     keyboard = [
-        [InlineKeyboardButton("Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{order_id}")],
-        [InlineKeyboardButton("Place an Order", url=f"https://t.me/{bot_username}?start=order")]
+        [InlineKeyboardButton("🚴 Claim This Order", url=f"https://t.me/{bot_username}?start=claim_{order_id}")],
+        [InlineKeyboardButton("📝 Place an Order", url=f"https://t.me/{bot_username}?start=order")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
 def format_order_time(order) -> str:
     return (
         f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
-        f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}"
+        f"{order.latest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')}"
     )
 
 def format_order_message(order, claim_status: str) -> str:

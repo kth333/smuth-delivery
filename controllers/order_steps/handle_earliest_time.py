@@ -1,7 +1,7 @@
 from telegram import Update
 from telegram.ext import CallbackContext
 from datetime import datetime, timedelta
-from utils.utils import get_main_menu
+from utils.utils import get_cancel_keyboard
 from views import messages
 from controllers.order_state import user_states, user_orders
 from controllers.time_validation import validate_strict_time_format
@@ -15,7 +15,7 @@ async def handle_earliest_time_input(update: Update, context: CallbackContext):
         await update.message.reply_text(
             "Invalid time format. Please use MM-DD HH:MMam/pm.",
             parse_mode="Markdown",
-            reply_markup=get_main_menu()
+            reply_markup=get_cancel_keyboard(user_id)
         )
         return False
     now = datetime.now(SGT)
@@ -23,7 +23,7 @@ async def handle_earliest_time_input(update: Update, context: CallbackContext):
         await update.message.reply_text(
             "Earliest pickup time must be in the future and within the next 7 days.",
             parse_mode="Markdown",
-            reply_markup=get_main_menu()
+            reply_markup=get_cancel_keyboard(user_id)
         )
         return False
     user_orders.setdefault(user_id, {})['earliest_dt'] = earliest_dt
@@ -32,6 +32,6 @@ async def handle_earliest_time_input(update: Update, context: CallbackContext):
     await update.message.reply_text(
         messages.ORDER_INSTRUCTIONS_LATEST_TIME,
         parse_mode="Markdown",
-        reply_markup=get_main_menu()
+        reply_markup=get_cancel_keyboard(user_id)
     )
     return True

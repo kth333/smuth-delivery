@@ -29,10 +29,10 @@ async def start(update: Update, context: CallbackContext):
         session.close()
 
         if order:
-            user_states[user_id] = {"state": "awaiting_confirmation", "order_id": int(order_id)}
+            user_states[user_id] = {"state": "awaiting_claim_confirmation", "order_id": int(order_id)}
             order_time = escape_markdown(
                 f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
-                f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
+                f"{order.latest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')}",
                 version=2
             )
             await message.reply_text(

@@ -81,10 +81,9 @@ CLAIM_SUCCESS_MESSAGE = (
     "💸 *Delivery Fee Offered:* ${delivery_fee}\n\n" 
     "🚀 *Next Steps:*\n"
     "1️⃣ Buy the meal from the vendor\.\n"
-    "2️⃣ Confirm purchase via the bot\.\n"
-    "3️⃣ Deliver to the delivery location\.\n"
-    "4️⃣ Receive your payment\!\n\n"
-    "💡 Stay updated with your claimed orders for smooth transactions\!"
+    "2️⃣ Deliver to the delivery location\.\n"
+    "3️⃣ Receive your payment\!\n\n"
+    "📍 *Contact the orderer to finalize details\!*"
 )
 
 # Order claimed notification for the orderer
@@ -97,7 +96,7 @@ ORDER_CLAIMED_NOTIFICATION = (
     "ℹ️ *Details:* {order_details}\n"
     "💸 *Delivery Fee Offered:* ${delivery_fee}\n\n" 
     "🚴 Claimed by: {claimed_by}\n\n"
-    "📍 *Stay tuned for updates on delivery\!*"
+    "📍 *Contact the runner for updates on delivery\!*"
 )
 
 # Order ID request prompt

@@ -4,11 +4,13 @@ from dotenv import load_dotenv
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram import Bot
 from controllers.start import start
-from controllers.order_conversation import start_order, handle_conversation
-from controllers.order_claim import handle_claim
+from controllers.conversation_handler import start_order, handle_conversation
+from controllers.claim_steps.handle_claim import handle_claim
 from controllers.help_command import help_command
-from controllers.order_management import view_orders, handle_my_orders, handle_my_claims
-from controllers.order_buttons import handle_button
+from controllers.order_management.handle_my_claims import handle_my_claims
+from controllers.order_management.handle_my_orders import handle_my_orders
+from controllers.order_management.view_orders import view_orders
+from controllers.handle_button import handle_button
 from tasks.expire_orders import expire_old_orders
 from models.database import create_tables
 

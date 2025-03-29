@@ -19,8 +19,8 @@ class Order(Base):
     order_text = Column(String, nullable=False)
     location = Column(String, nullable=True)
     time = Column(String, nullable=True)
-    earliest_pickup_time = Column(DateTime, nullable=True)
-    latest_pickup_time = Column(DateTime, nullable=True)
+    earliest_pickup_time = Column(DateTime(timezone=True), nullable=True)
+    latest_pickup_time = Column(DateTime(timezone=True), nullable=True)
     details = Column(String, nullable=True)
     delivery_fee = Column(String, nullable=True)
     claimed = Column(Boolean, default=False)
@@ -29,8 +29,8 @@ class Order(Base):
     runner_id = Column(BigInteger, nullable=True)
     user_handle = Column(String, nullable=True)
     runner_handle = Column(String, nullable=True)
-    order_placed_time = Column(DateTime, default=lambda: datetime.now(SGT))  
-    order_claimed_time = Column(DateTime, nullable=True)
+    order_placed_time = Column(DateTime(timezone=True), default=lambda: datetime.now(SGT))  
+    order_claimed_time = Column(DateTime(timezone=True), nullable=True)
     channel_message_id = Column(Integer, nullable=True)
 
 # Create all tables in the database

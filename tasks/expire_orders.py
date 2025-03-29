@@ -49,13 +49,13 @@ async def expire_old_orders(bot):
                         order_location=escape_markdown(order.location, version=2),
                         order_time=escape_markdown(
                             f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
-                            f"{order.latest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')}",
+                            f"{order.latest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')}",
                             version=2
                         ),
                         order_details=escape_markdown(order.details, version=2),
                         delivery_fee=escape_markdown(order.delivery_fee, version=2),
                         claim_status=escape_markdown(
-                            "Claim Status: This order has expired and is no longer available.",
+                            "Claim Status: ⌛ This order has expired and is no longer available.",
                             version=2
                         )
                     )

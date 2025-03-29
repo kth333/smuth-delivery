@@ -35,8 +35,8 @@ async def handle_confirmation_input(update: Update, context: CallbackContext):
 
     # Create inline buttons for confirming or canceling the order
     keyboard = [
-        [InlineKeyboardButton("Confirm Order", callback_data=f"confirm_order_{user_id}")],
-        [InlineKeyboardButton("Cancel Order", callback_data=f"cancel_order_{user_id}")]
+        [InlineKeyboardButton("✅ Confirm Order", callback_data=f"confirm_order_{user_id}")],
+        [InlineKeyboardButton("❌ Cancel Order", callback_data=f"cancel_order_{user_id}")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
