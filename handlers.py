@@ -754,14 +754,14 @@ async def handle_message(update: Update, context: CallbackContext):
                         )
                         return
 
-                    if order.user_id == user_id:
-                        await update.message.reply_text(
-                            "⚠️ You can't claim your own order.",
-                            parse_mode="Markdown",
-                            reply_markup=get_main_menu()
-                        )
-                        session.close()
-                        return
+                    # if order.user_id == user_id:
+                    #     await update.message.reply_text(
+                    #         "⚠️ You can't claim your own order.",
+                    #         parse_mode="Markdown",
+                    #         reply_markup=get_main_menu()
+                    #     )
+                    #     session.close()
+                    #     return
 
                     # Check if user has already claimed 2 active orders
                     active_claims = session.query(Order).filter_by(runner_id=user_id, claimed=True, expired=False).count()
@@ -921,7 +921,7 @@ async def handle_message(update: Update, context: CallbackContext):
 
                     if order:
                         now = datetime.now(SGT)
-                        if order.latest_pickup_time < now:
+                        if order.latest_pickup_time.astimezone(SGT) < now:
                             await update.message.reply_text(
                                 "⏰ You can't cancel this claim because the pickup time has already passed.",
                                 parse_mode="Markdown",
@@ -1574,6 +1574,15 @@ async def handle_my_claims(update: Update, context: CallbackContext):
                 f"📦 *My Claims:*\n\n{chunk}",
                 parse_mode="MarkdownV2"
             )
+            
+        # Ask user to pick which claimed order to cancel
+        keyboard = [
+            [InlineKeyboardButton("Back", callback_data='start')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        user_states[user_id] = {'state': 'selecting_claimed_order'}
+        await message.reply_text("Please enter the Order ID you want to cancel claim for:", reply_markup=reply_markup)
     else:
         await message.reply_text(
             "⏳ You haven't claimed any orders yet.\n\nCheck /vieworders to see available ones.",
@@ -1581,14 +1590,6 @@ async def handle_my_claims(update: Update, context: CallbackContext):
             reply_markup=get_main_menu()
         )
 
-    # Ask user to pick which claimed order to cancel
-    keyboard = [
-        [InlineKeyboardButton("Back", callback_data='start')]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    user_states[user_id] = {'state': 'selecting_claimed_order'}
-    await message.reply_text("Please enter the Order ID you want to cancel claim for:", reply_markup=reply_markup)
 
 async def handle_button(update: Update, context: CallbackContext):
     """Handles button presses from InlineKeyboardMarkup."""

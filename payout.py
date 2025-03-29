@@ -110,7 +110,7 @@ async def transfer_funds(runner_id, amount):
         payout = await payout_to_user(stripe_account_id, amount)
     
         if payout:
-            send_telegram_message(f"Successfully transferred ${amount} to your Stripe account: {payout['id']}", runner_id)
+            send_telegram_message(f"Successfully transferred ${amount:.2f} to your Stripe account: {payout['id']}", runner_id)
         else:
             send_telegram_message(f"Failed to transfer funds to your Stripe account. Please contact the admins for help", runner_id)
         return
