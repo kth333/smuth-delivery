@@ -1,5 +1,3 @@
-# controllers/order_claim.py
-
 import os
 import logging
 from datetime import datetime
@@ -15,7 +13,10 @@ from utils.utils import get_main_menu
 from controllers.order_state import user_states
 
 async def handle_claim(update: Update, context: CallbackContext):
-    """Starts the process for a runner to claim an order."""
+    """
+    Handles the /claim command. If an order ID is provided, processes it;
+    otherwise, prompts the user to enter an order ID.
+    """
     user_id = update.effective_user.id
     message = update.message if update.message else update.callback_query.message
     order_id = context.user_data.pop("claim_order_id", None)
@@ -25,7 +26,7 @@ async def handle_claim(update: Update, context: CallbackContext):
         order_id = context.args[0]
         await process_claim_order_by_id(update, context, user_id, order_id)
     else:
-        user_states[user_id] = {'state': 'awaiting_order_id'}
+        user_states[user_id] = {"state": "awaiting_order_id"}
         await message.reply_text(
             messages.ORDER_ID_REQUEST,
             parse_mode="Markdown",
@@ -33,7 +34,9 @@ async def handle_claim(update: Update, context: CallbackContext):
         )
 
 async def process_claim_order_by_id(update: Update, context: CallbackContext, user_id: int, order_id: str):
-    """Processes an order claim given an order ID."""
+    """
+    Processes an order claim given an order ID.
+    """
     message = update.message if update.message else update.callback_query.message
     try:
         order_id = int(order_id)
@@ -68,7 +71,8 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
                 reply_markup=get_main_menu()
             )
             return
-        # Process the claim.
+
+        # Process claim.
         order.claimed = True
         order.runner_id = user_id
         user_handle = update.effective_user.username

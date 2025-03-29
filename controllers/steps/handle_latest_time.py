@@ -1,36 +1,35 @@
 from telegram import Update
 from telegram.ext import CallbackContext
-from datetime import datetime, timedelta
+from datetime import timedelta
 from utils.utils import get_main_menu
 from views import messages
 from controllers.order_state import user_states, user_orders
-from controllers.conversation_validation import validate_strict_time_format
-from models.database import SGT
+from controllers.time_validation import validate_strict_time_format
 
-async def handle_earliest_time_input(update: Update, context: CallbackContext):
+async def handle_latest_time_input(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     text = update.message.text.strip()
-    earliest_dt = validate_strict_time_format(text)
-    if not earliest_dt:
+    latest_dt = validate_strict_time_format(text)
+    if not latest_dt:
         await update.message.reply_text(
             "Invalid time format. Please use MM-DD HH:MMam/pm.",
             parse_mode="Markdown",
             reply_markup=get_main_menu()
         )
         return False
-    now = datetime.now(SGT)
-    if earliest_dt < now or earliest_dt > now + timedelta(days=7):
+    earliest_dt = user_orders[user_id]['earliest_dt']
+    if latest_dt <= earliest_dt or latest_dt - earliest_dt > timedelta(hours=3):
         await update.message.reply_text(
-            "Earliest pickup time must be in the future and within the next 7 days.",
+            "Latest pickup time must be after the earliest time and within 3 hours.",
             parse_mode="Markdown",
             reply_markup=get_main_menu()
         )
         return False
-    user_orders.setdefault(user_id, {})['earliest_dt'] = earliest_dt
-    user_orders[user_id]['earliest_input'] = text
-    user_states[user_id]['state'] = 'awaiting_order_latest_time'
+    user_orders[user_id]['latest_dt'] = latest_dt
+    user_orders[user_id]['latest_input'] = text
+    user_states[user_id]['state'] = 'awaiting_order_details'
     await update.message.reply_text(
-        messages.ORDER_INSTRUCTIONS_LATEST_TIME,
+        messages.ORDER_INSTRUCTIONS_DETAILS,
         parse_mode="Markdown",
         reply_markup=get_main_menu()
     )

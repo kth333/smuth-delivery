@@ -27,3 +27,11 @@ def get_db():
         yield db
     finally:
         db.close()
+
+def create_tables():
+    """Creates all tables in the database if they do not already exist."""
+    Base.metadata.create_all(bind=engine)
+
+# If this module is run directly, create the tables.
+if __name__ == '__main__':
+    create_tables()
