@@ -16,6 +16,7 @@ def get_my_orders_menu():
         [InlineKeyboardButton("Complete Order", callback_data='complete_order')],
         [InlineKeyboardButton("Make Payment", callback_data='handle_payment')],
         [InlineKeyboardButton("Edit Order", callback_data='edit_order')],
+        [InlineKeyboardButton("Report Runner", callback_data='report_user')],
         [InlineKeyboardButton("Delete Order", callback_data='delete_order')],
         [InlineKeyboardButton("Back", callback_data='start')]
     ])
