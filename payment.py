@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 import stripe 
 from flask import Flask, request
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from database import *
+from models.database import *
 
 load_dotenv()
 
