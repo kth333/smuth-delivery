@@ -2,7 +2,7 @@ from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import CallbackContext
 from telegram.helpers import escape_markdown
 from database import Order, session_local  # Importing Order model and session to interact with the database
-from utils import get_main_menu  # Importing the helper function for generating the keyboard
+from utils import get_main_menu, get_my_orders_menu  # Importing the helper function for generating the keyboard
 import messages  # Importing the messages from messages.py
 from payment import *
 from payout import *
@@ -519,22 +519,13 @@ async def handle_message(update: Update, context: CallbackContext):
                 order = session.query(Order).filter_by(id=user_message, user_id=user_id).first()
                 session.close()
             
-                myorders_keyboard = [
-                    [InlineKeyboardButton("Complete Order", callback_data='complete_order')],
-                    [InlineKeyboardButton("Make Payment", callback_data='handle_payment')],
-                    [InlineKeyboardButton("Edit Order", callback_data='edit_order')],
-                    [InlineKeyboardButton("Delete Order", callback_data='delete_order')],
-                    [InlineKeyboardButton("Back", callback_data='start')]
-                ]
-                
-                reply_markup = InlineKeyboardMarkup(myorders_keyboard)
-            
                 if order: 
                     await update.message.reply_text(
                         f"✅ *Order Selected:* {order.order_text}\n\n"
                         "Please choose an option:",
                         parse_mode="Markdown",
-                        reply_markup=reply_markup)
+                        reply_markup=get_my_orders_menu()
+                        )
                 
                     user_states[user_id] = {'selected_order': order.id}  # Store selected order ID
                 else: 
@@ -825,7 +816,7 @@ async def handle_payment(update: Update, context: CallbackContext):
             parse_mode="Markdown",
             reply_markup=get_main_menu()
         )
-        
+
 async def edit_order(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     
@@ -859,7 +850,7 @@ async def edit_order(update: Update, context: CallbackContext):
             parse_mode="Markdown"
         )
     session.close()
-    
+
 async def delete_order(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     
@@ -902,12 +893,20 @@ async def complete_order(update: Update, context: CallbackContext):
     elif update.callback_query:
         message = update.callback_query.message
         
-    user_states[user_id]['state'] = 'confirming_complete_order'
-    
-    await message.reply_text(
-        f"You are about to complete the Order\n"
-        "Are you sure (Yes or No)"
-    )
+    if orderer_has_paid(update, context):
+        user_states[user_id]['state'] = 'confirming_complete_order'
+        
+        await message.reply_text(
+            f"You are about to complete the Order\n"
+            "Are you sure (Yes or No)"
+        )
+    else:
+        await message.reply_text(
+            f"You have not paid for the order yet.\n"
+            "Please pay first before completing the order.",
+            parse_mode="Markdown",
+            reply_markup=get_my_orders_menu()
+        )
     
 async def send_runner_confirmation(update: Update, context: CallbackContext, order_id):
     session = session_local()
@@ -950,7 +949,7 @@ async def handle_completed_order(update: Update, context: CallbackContext):
     session.commit()
     session.close()
     
-    # Notify the orderer
+    # Notify the orderer and runner
     if orderer_id: 
         try:
             await context.bot.send_message(
@@ -981,10 +980,7 @@ async def handle_completed_order(update: Update, context: CallbackContext):
         del user_states[runner_id]
     if orderer_id in user_states:
         del user_states[orderer_id]
-   
-            
-    print("ORDER COMPLETED")
-    
+
 async def check_for_stripe_account(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     
@@ -1002,9 +998,24 @@ async def check_for_stripe_account(update: Update, context: CallbackContext):
             f"You do not have a Stripe Account setup yet.\n"
             "To start claiming orders, you have to create a Stripe Account to receive payment.\n\n"
             "Would you like to proceed? (Yes or No)")
-        
+
         return True
-        
+    
+def orderer_has_paid(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    
+    message = update.message if update.message else update.callback_query.message
+    
+    session = session_local()
+    order_id = user_states[user_id]['selected_order']
+    
+    order = session.query(Order).filter_by(id=order_id).first()
+    session.close()
+    
+    if order.payment_amount:
+        return True
+    else:
+        return False
 
 async def handle_button(update: Update, context: CallbackContext):
     """Handles button presses from InlineKeyboardMarkup."""
