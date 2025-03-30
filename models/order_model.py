@@ -38,7 +38,24 @@ class StripeAccount(Base):
     __tablename__ = 'stripe_accounts'
     telegram_id = Column(BigInteger, primary_key=True)
     stripe_account_id = Column(String, nullable=False)
+    
+class ReportUser(Base):
+    __tablename__ = 'report_user'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    reporter_id = Column(BigInteger, nullable=False)
+    order_id = Column(Integer, nullable=False)
+    reported_user_id = Column(BigInteger, nullable=False)
+    reason = Column(String, nullable=False)
+    timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(SGT))
+    
+# class ReportBugs(Base):
+#     __tablename__ = 'report_bugs'
+#     id = Column(Integer, primary_key=True, autoincrement=True)
+#     reporter_id = Column(BigInteger, nullable=False)
+#     bug_description = Column(String, nullable=False)
+#     timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(SGT))
 
 # Create all tables in the database
 def create_tables():
     Base.metadata.create_all(bind=engine)
+    

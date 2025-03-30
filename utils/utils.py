@@ -8,6 +8,7 @@ def get_main_menu():
         [InlineKeyboardButton("Claim Order", callback_data='claim')],
         [InlineKeyboardButton("View and Cancel Orders", callback_data='myorders')],
         [InlineKeyboardButton("View and Cancel Claims", callback_data='myclaims')],
+        [InlineKeyboardButton("Report Issue", callback_data='report_issue')],
         [InlineKeyboardButton("Help", callback_data='help')]
     ])
 

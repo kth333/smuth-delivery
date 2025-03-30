@@ -13,6 +13,9 @@ from controllers.order_management.delete_order import delete_order
 from controllers.order_management.cancel_claim import cancel_claim
 from controllers.help_command import help_command
 from controllers.order_state import user_states, user_orders
+from controllers.report_issue.report_issue import handle_report
+from controllers.report_issue.handle_report_user import handle_report_user
+from controllers.report_issue.handle_report_user_reason import handle_report_user_reason
 from utils.utils import get_main_menu
 from views.order_view import get_order_keyboard, format_order_message, format_order_time
 from views import messages
@@ -93,6 +96,15 @@ async def handle_button(update: Update, context: CallbackContext):
             parse_mode="Markdown",
             reply_markup=get_main_menu()
         )
+        
+    elif callback_data.startswith("reporting_user_"):
+        order = callback_data.split("_")
+        order_id = int(order[2])
+        reported_user_handle = order[3]
+        user_states[user_id] = {"order_id": order_id, "reported_user_handle": reported_user_handle}
+        await handle_report_user_reason(update, context, order_id, reported_user_handle)
+
+    
     elif callback_data == 'start':
         await start(update, context)
     elif callback_data == 'order':
@@ -109,5 +121,11 @@ async def handle_button(update: Update, context: CallbackContext):
         await delete_order(update, context)
     elif callback_data == 'cancel_claim':
         await cancel_claim(update, context)
+    elif callback_data == 'report_issue':
+        await handle_report(update, context)
+    elif callback_data == 'report_user':
+        await handle_report_user(update, context)
+    # elif callback_data == 'report_bugs':
+    #     await handle_report_bugs(update, context)
     elif callback_data == 'help':
         await help_command(update, context)

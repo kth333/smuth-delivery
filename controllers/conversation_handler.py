@@ -17,6 +17,7 @@ from controllers.order_management.delete_order import delete_order
 from controllers.order_management.cancel_claim import cancel_claim
 from controllers.claim_steps.handle_confirmation import handle_claim_confirmation
 from controllers.claim_steps.handle_claim import process_claim_order_by_id
+from controllers.report_issue.save_report_user import save_report_user
 
 async def start_order(update: Update, context: CallbackContext):
     """
@@ -102,6 +103,8 @@ async def handle_conversation(update: Update, context: CallbackContext):
                 "Invalid response. Please reply with YES to confirm cancellation or NO to abort.",
                 parse_mode="Markdown"
             )
+    elif current_state == "reporting_user_details":
+        await save_report_user(update, context)
     else:
         await update.message.reply_text(
             "Need help? Type /help or use the menu below.",
