@@ -55,15 +55,15 @@ async def handle_claim_confirmation(update: Update, context: CallbackContext):
         #     )
         #     return
 
-        active_claims = session.query(Order).filter_by(runner_id=user_id, claimed=True, expired=False).count()
-        if active_claims >= 2:
-            await update.message.reply_text(
-                "🚫 You have already claimed 2 active orders.\n\n"
-                "Please cancel one of your existing claims before claiming a new one.",
-                parse_mode="Markdown",
-                reply_markup=get_main_menu()
-            )
-            return
+        # active_claims = session.query(Order).filter_by(runner_id=user_id, claimed=True, expired=False).count()
+        # if active_claims >= 2:
+        #     await update.message.reply_text(
+        #         "🚫 You have already claimed 2 active orders.\n\n"
+        #         "Please cancel one of your existing claims before claiming a new one.",
+        #         parse_mode="Markdown",
+        #         reply_markup=get_main_menu()
+        #     )
+        #     return
 
         # Delegate the actual claiming
         await perform_claim(session, order, order_id, update, context)

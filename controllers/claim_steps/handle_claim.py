@@ -64,14 +64,14 @@ async def process_claim_order_by_id(update: Update, context: CallbackContext, us
         #         reply_markup=get_main_menu()
         #     )
         #     return
-        active_claims = session.query(Order).filter_by(runner_id=user_id, claimed=True, expired=False).count()
-        if active_claims >= 2:
-            await message.reply_text(
-                "🚫 You have already claimed 2 active orders. Please cancel one before claiming a new one.",
-                parse_mode="Markdown",
-                reply_markup=get_main_menu()
-            )
-            return
+        # active_claims = session.query(Order).filter_by(runner_id=user_id, claimed=True, expired=False).count()
+        # if active_claims >= 2:
+        #     await message.reply_text(
+        #         "🚫 You have already claimed 2 active orders. Please cancel one before claiming a new one.",
+        #         parse_mode="Markdown",
+        #         reply_markup=get_main_menu()
+        #     )
+        #     return
 
         # Now that all checks pass, call the helper to perform the claim.
         await perform_claim(session, order, order_id, update, context)

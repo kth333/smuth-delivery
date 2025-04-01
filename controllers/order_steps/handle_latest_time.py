@@ -14,7 +14,7 @@ async def handle_latest_time_input(update: Update, context: CallbackContext):
         await update.message.reply_text(
             "Invalid time format. Please use MM-DD HH:MMam/pm.",
             parse_mode="Markdown",
-            reply_markup=get_main_menu(user_id)
+            reply_markup=get_main_menu()
         )
         return False
     earliest_dt = user_orders[user_id]['earliest_dt']
