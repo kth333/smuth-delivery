@@ -48,8 +48,8 @@ async def expire_old_orders(bot):
                         order_text=escape_markdown(order.order_text, version=2),
                         order_location=escape_markdown(order.location, version=2),
                         order_time=escape_markdown(
-                            f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
-                            f"{order.latest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')}",
+                            f"{order.earliest_pickup_time.astimezone(SGT).strftime('%A, %m-%d %I:%M%p')} - "
+                            f"{order.latest_pickup_time.astimezone(SGT).strftime('%I:%M%p')}",
                             version=2
                         ),
                         order_details=escape_markdown(order.details, version=2),

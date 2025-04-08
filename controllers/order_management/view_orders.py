@@ -27,8 +27,8 @@ async def view_orders(update: Update, context: CallbackContext):
         order_list = []
         for o in orders:
             time_str = (
-                f"{o.earliest_pickup_time.astimezone(SGT).strftime('%A %m-%d %I:%M%p')} - "
-                f"{o.latest_pickup_time.astimezone(SGT).strftime('%m-%d %I:%M%p')}"
+                f"{o.earliest_pickup_time.astimezone(SGT).strftime('%A, %m-%d %I:%M%p')} - "
+                f"{o.latest_pickup_time.astimezone(SGT).strftime('%I:%M%p')}"
             )
             order_text = (
                 f"📌 *Order ID:* {escape_markdown(str(o.id), version=2)}\n"

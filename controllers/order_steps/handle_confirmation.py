@@ -20,8 +20,8 @@ async def handle_confirmation_input(update: Update, context: CallbackContext):
         return
 
     # Format the pickup time range
-    earliest_time = order_data['earliest_dt'].astimezone(SGT).strftime('%A %m-%d %I:%M%p')
-    latest_time = order_data['latest_dt'].astimezone(SGT).strftime('%m-%d %I:%M%p')
+    earliest_time = order_data['earliest_dt'].astimezone(SGT).strftime('%A, %m-%d %I:%M%p')
+    latest_time = order_data['latest_dt'].astimezone(SGT).strftime('%I:%M%p')
     order_time_str = f"{earliest_time} - {latest_time}"
 
     # Build the order summary using the ORDER_SUMMARY message from views/messages.py
