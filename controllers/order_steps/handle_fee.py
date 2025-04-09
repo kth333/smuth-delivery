@@ -22,7 +22,7 @@ async def handle_fee_input(update: Update, context: CallbackContext):
                 parse_mode="Markdown",
             )
             return False
-        if fee_amount > 5.0:
+        if fee_amount > 6.0:
             await update.message.reply_text(
                 "Stop the cap",
                 parse_mode="Markdown",
